@@ -1,0 +1,103 @@
+/* Boardline in Obsidian: the board UI's --bl-* tokens from the Obsidian theme, and the plugin's
+   own bits (the view, dialogs, board embeds in notes). */
+
+.bl-view {
+  position: relative;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.bl-mount {
+  position: absolute;
+  inset: 0;
+}
+.bl-root {
+  --bl-bg: var(--background-primary);
+  --bl-panel: var(--background-secondary);
+  --bl-panel-2: var(--background-modifier-hover);
+  --bl-border: var(--background-modifier-border);
+  --bl-text: var(--text-normal);
+  --bl-text-dim: var(--text-muted);
+  --bl-accent: var(--interactive-accent);
+  --bl-accent-soft: hsla(var(--interactive-accent-hsl), 0.2);
+  --bl-danger: var(--text-error);
+  --bl-board-text: var(--text-normal);
+  --bl-font: var(--font-interface);
+}
+/* Obsidian gives every button a shadow; the board's buttons bring their own look. */
+.bl-root button {
+  box-shadow: none;
+}
+.bl-load-error {
+  padding: var(--size-4-4);
+  color: var(--text-error);
+}
+
+/* Dialogs */
+.bl-suggest-detail,
+.bl-prompt-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.bl-suggest-detail {
+  display: block;
+}
+.bl-prompt-input {
+  width: 100%;
+  min-height: 12em;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  resize: vertical;
+}
+.bl-prompt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-3);
+}
+
+/* ![[Board.board]] in notes */
+.bl-embed {
+  display: block;
+}
+.bl-embed-frame {
+  display: inline-flex;
+  flex-direction: column;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  cursor: pointer;
+}
+.bl-embed-frame:hover {
+  border-color: var(--interactive-accent);
+}
+.bl-embed-title {
+  padding: var(--size-4-1) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.bl-embed-frame img {
+  display: block;
+  max-width: 100%;
+}
+.bl-embed-empty {
+  padding: var(--size-4-4);
+  color: var(--text-faint);
+}
+
+/* Settings: the third-party notices, folded. */
+.boardline-notices summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.boardline-notices pre {
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  white-space: pre-wrap;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+}

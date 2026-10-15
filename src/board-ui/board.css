@@ -1,0 +1,1347 @@
+/* The board UI. Class names start with bl- and colors come from --bl-* tokens, which
+   plugin.css maps from Obsidian's theme. */
+
+.bl-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Narrow boards (phones, a narrow Obsidian pane) rearrange their bars: see the end of the file. */
+  container: bl-board / size;
+  color: var(--bl-text);
+  font-family: var(--bl-font);
+  font-size: 14px;
+}
+:where(.bl-root) *,
+:where(.bl-root) *::before,
+:where(.bl-root) *::after {
+  box-sizing: border-box;
+}
+/* Content sits centered both ways (icons and text alike; symbols would ride the baseline). */
+:where(.bl-root) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.2;
+  font: inherit;
+  color: inherit;
+  background: var(--bl-panel-2);
+  border: 1px solid var(--bl-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+:where(.bl-root) button:hover:not(:disabled) {
+  border-color: var(--bl-text-dim);
+}
+:where(.bl-root) button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bl-board-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.bl-board-canvas {
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+.bl-board-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Text typed on the board looks like the board's own text. The host page may style every
+   textarea (Obsidian: a focus ring and rounded corners), so each such property is set here. */
+.bl-board-text-editor {
+  position: absolute;
+  pointer-events: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--bl-board-text);
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: var(--bl-accent);
+}
+
+.bl-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 88px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 10px;
+}
+
+.bl-toolbar button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 18px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.bl-toolbar button.active {
+  background: var(--bl-accent);
+}
+
+/* A button with choices: a small corner mark, like a folded page. */
+.bl-toolbar .bl-tool-group {
+  position: relative;
+}
+
+.bl-toolbar .bl-tool-group::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  border: 2.5px solid transparent;
+  border-right-color: currentColor;
+  border-bottom-color: currentColor;
+  opacity: 0.55;
+}
+
+.bl-rail-sep {
+  flex: none;
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--bl-border);
+}
+
+/* The view controls down the right edge, as in Obsidian's canvas: groups of 32px icon
+   buttons stacked in a column, 8px apart. */
+.bl-view-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bl-control-group {
+  display: flex;
+  flex-direction: column;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 12%);
+  overflow: hidden;
+}
+
+.bl-control-group button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--bl-text-dim);
+}
+
+.bl-control-group button + button {
+  border-top: 1px solid var(--bl-border);
+}
+
+.bl-control-group button:hover:not(:disabled) {
+  color: var(--bl-text);
+  background: var(--bl-panel-2);
+}
+
+.bl-control-group button.active {
+  color: var(--bl-accent);
+}
+
+/* The gear's menu opens to its left. */
+.bl-view-controls .bl-settings-menu {
+  top: 0;
+  right: calc(100% + 8px);
+  left: auto;
+  transform: none;
+  min-width: 200px;
+}
+
+.bl-settings-menu .bl-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  justify-content: flex-start;
+}
+
+.bl-settings-menu .bl-menu-item:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-menu-icon,
+.bl-menu-check {
+  display: flex;
+  align-items: center;
+  color: var(--bl-text-dim);
+}
+
+.bl-menu-label {
+  flex: 1;
+}
+
+.bl-menu-check {
+  width: 14px;
+  color: var(--bl-accent);
+}
+
+/* Where the tool bar is when the board is read-only; a click turns it off. */
+.bl-readonly-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--bl-text-dim);
+  background: var(--bl-panel);
+  border-radius: 6px;
+}
+
+/* A connector label being typed: an outlined box on the line (the line stops under it). */
+/* Markdown text while it is typed: marks look the way the board draws them. */
+.bl-board-text-editor.rich {
+  outline: none;
+  cursor: text;
+}
+
+.bl-board-text-editor.rich b {
+  font-weight: 600;
+}
+
+.bl-board-text-editor.rich mark {
+  background: rgba(255, 208, 0, 0.42);
+  color: inherit;
+}
+
+.bl-board-text-editor.rich code {
+  padding: 0 2px;
+  font-family: 'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace;
+  font-size: 0.88em;
+  background: rgba(135, 135, 135, 0.16);
+  border-radius: 3px;
+}
+
+.bl-board-text-editor.rich a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.bl-board-text-editor.label {
+  box-sizing: border-box;
+  background: var(--bl-bg);
+  border: 1px solid var(--bl-accent);
+  border-radius: 2px;
+  color: var(--bl-board-text);
+}
+
+.bl-board-text-editor.label::placeholder,
+.bl-board-text-editor.rich:empty::before {
+  color: var(--bl-text-dim);
+}
+
+.bl-board-text-editor.rich:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.bl-selection-toolbar {
+  position: absolute;
+  z-index: 5;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+  white-space: nowrap;
+}
+
+.bl-selection-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 15px;
+}
+
+.bl-selection-toolbar button.active {
+  background: var(--bl-accent);
+}
+
+/* Text size: narrow −/+ around the current size. */
+.bl-selection-toolbar .bl-text-size {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bl-selection-toolbar .bl-text-size > button {
+  min-width: 24px;
+  padding: 0 3px;
+}
+
+.bl-selection-toolbar .bl-text-size-value {
+  min-width: 34px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bl-selection-toolbar .bl-glyph {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.bl-glyph.bold {
+  font-weight: 700;
+}
+
+.bl-glyph.italic {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.bl-glyph.strike {
+  text-decoration: line-through;
+}
+
+.bl-align-menu {
+  grid-template-columns: repeat(3, 32px);
+}
+
+.bl-text-size-menu,
+.bl-list-menu {
+  grid-template-columns: 1fr;
+  min-width: 170px;
+}
+
+.bl-selection-toolbar .bl-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--bl-border);
+}
+
+.bl-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid oklch(100% 0 0 / 25%);
+  vertical-align: middle;
+}
+
+.bl-menu-anchor {
+  position: relative;
+  display: flex;
+}
+
+.bl-menu {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+}
+
+/* Two rows of six: the neutrals and warm hues, then the cool ones. */
+.bl-color-menu {
+  grid-template-columns: repeat(6, 30px);
+}
+
+.bl-cap-menu {
+  grid-template-columns: repeat(3, 40px);
+}
+
+.bl-shape-menu {
+  grid-template-columns: repeat(5, 32px);
+}
+
+.bl-deco-menu {
+  grid-template-columns: repeat(4, 32px);
+}
+
+.bl-custom-color {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--bl-text-dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.bl-custom-color:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-custom-color input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bl-size-label {
+  position: absolute;
+  z-index: 4;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bl-accent);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.bl-more-menu {
+  left: auto;
+  right: 0;
+  transform: none;
+  grid-template-columns: 1fr;
+  min-width: 220px;
+}
+
+/* The right-click menu: rows like the selection bar's "more" menu, wherever it opens. */
+.bl-menu.bl-context-menu {
+  z-index: 30;
+  top: 0;
+  left: 0;
+  transform: none;
+  grid-template-columns: 1fr;
+  min-width: 220px;
+}
+
+.bl-context-menu .bl-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--bl-text);
+  text-align: left;
+  font-size: 13px;
+}
+
+.bl-context-menu .bl-menu-item:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bl-panel-2);
+}
+
+.bl-context-menu.flip-sub .bl-menu-sub > .bl-submenu {
+  left: auto;
+  right: 100%;
+}
+
+.bl-context-menu hr,
+.bl-more-menu hr,
+.bl-table-menu hr,
+.bl-submenu hr {
+  margin: 3px 4px;
+  border: none;
+  border-top: 1px solid var(--bl-border);
+}
+
+.bl-selection-toolbar .bl-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.bl-selection-toolbar .bl-menu-item:hover:not(:disabled) {
+  background: var(--bl-panel-2);
+}
+
+.bl-menu-item kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--bl-text-dim);
+}
+
+.bl-menu-item .bl-chevron {
+  color: var(--bl-text-dim);
+}
+
+.bl-menu-sub {
+  position: relative;
+}
+
+.bl-menu-sub > .bl-submenu {
+  display: none;
+  top: -7px;
+  left: 100%;
+  transform: none;
+  grid-template-columns: 1fr;
+  min-width: 200px;
+}
+
+.bl-menu-sub:hover > .bl-submenu {
+  display: grid;
+}
+
+.bl-table-menu {
+  grid-template-columns: 1fr;
+  min-width: 200px;
+}
+
+.bl-board-text-editor.cell {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.bl-menu button:disabled {
+  opacity: 0.35;
+}
+
+.bl-board-text-editor.mindmap {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.bl-selection-toolbar.beside {
+  transform: none;
+}
+
+.bl-selection-toolbar.beside.on-left {
+  transform: translateX(-100%);
+}
+
+.bl-find-bar input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--bl-border);
+  border-radius: 6px;
+  background: var(--bl-bg);
+  color: var(--bl-text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.bl-find-bar input:focus {
+  border-color: var(--bl-accent);
+}
+
+.bl-find-bar {
+  position: absolute;
+  top: 16px;
+  /* Left of the view controls. */
+  right: 64px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+}
+
+.bl-find-bar input {
+  width: 200px;
+}
+
+.bl-find-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bl-find-bar button.bl-find-toggle,
+.bl-find-toggle-space {
+  flex: none;
+  width: 18px;
+}
+
+.bl-find-bar button.bl-find-text {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bl-find-count {
+  min-width: 48px;
+  font-size: 12px;
+  color: var(--bl-text-dim);
+  text-align: center;
+}
+
+.bl-find-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bl-text);
+}
+
+.bl-find-bar button:hover:not(:disabled) {
+  background: var(--bl-panel-2);
+}
+
+.bl-find-bar button:disabled {
+  opacity: 0.4;
+}
+
+.bl-history-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  background: var(--bl-panel);
+  border-left: 1px solid var(--bl-border);
+  box-shadow: -4px 0 16px oklch(0% 0 0 / 25%);
+}
+
+.bl-history-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 8px 0 16px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--bl-border);
+}
+
+.bl-history-panel header button {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bl-text);
+}
+
+.bl-history-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--bl-border);
+}
+
+.bl-history-preview img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--bl-border);
+  border-radius: 6px;
+  background: var(--bl-bg);
+}
+
+.bl-history-preview .bl-primary {
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bl-accent);
+  color: white;
+  font: inherit;
+  font-size: 13px;
+}
+
+.bl-history-preview .bl-primary:disabled {
+  opacity: 0.5;
+}
+
+.bl-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.bl-history-item {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bl-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.bl-history-item:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-history-item.active {
+  background: var(--bl-accent-soft);
+}
+
+.bl-history-relative {
+  font-size: 12px;
+  color: var(--bl-text-dim);
+}
+
+.bl-history-empty,
+.bl-history-error {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--bl-text-dim);
+  line-height: 1.5;
+}
+
+.bl-history-error {
+  color: var(--bl-danger);
+}
+
+/* A tool group's choices, out to the right of its button (the script sets the top). */
+.bl-flyout {
+  position: absolute;
+  top: var(--bl-flyout-top, 16px);
+  left: 72px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 140px);
+  padding: 6px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+}
+
+.bl-flyout button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bl-text);
+}
+
+.bl-flyout button:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-flyout button.active {
+  background: var(--bl-accent);
+}
+
+.bl-flyout .bl-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--bl-border);
+}
+
+/* Shapes: a column of named rows with their keys. */
+.bl-flyout-shapes {
+  flex-direction: column;
+  align-items: stretch;
+  width: 168px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+
+.bl-flyout-shapes button {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.bl-flyout-label {
+  flex: 1;
+  text-align: left;
+}
+
+.bl-flyout kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--bl-text-dim);
+}
+
+/* Drawing: three pens, then the colors three to a row, then the close button. */
+.bl-flyout-draw {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+}
+
+.bl-flyout-draw .bl-sep {
+  grid-column: 1 / -1;
+  width: auto;
+  height: 1px;
+  margin: 3px 2px;
+}
+
+/* The icon library brings its own panel. */
+.bl-flyout-icons {
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.bl-icon-picker {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  max-height: min(520px, calc(100vh - 140px));
+  padding: 8px;
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+  color: var(--bl-text);
+}
+
+.bl-icon-menu {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bl-icon-picker-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bl-icon-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.bl-icon-picker-head input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--bl-border);
+  border-radius: 6px;
+  background: var(--bl-bg);
+  color: var(--bl-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.bl-icon-picker button {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bl-text);
+  font: inherit;
+}
+
+.bl-icon-picker button:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-icon-picker button.active {
+  background: var(--bl-accent);
+}
+
+.bl-icon-picker .bl-icon-picker-row {
+  display: block;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.bl-icon-categories {
+  overflow-y: auto;
+}
+
+.bl-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.bl-icon-grid.bl-scroll {
+  overflow-y: auto;
+}
+
+.bl-icon-grid button {
+  height: 32px;
+}
+
+.bl-icon-picker-empty {
+  grid-column: 1 / -1;
+  padding: 12px 4px;
+  color: var(--bl-text-dim);
+  font-size: 12px;
+}
+
+.bl-help-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: oklch(0% 0 0 / 35%);
+}
+
+.bl-help-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, calc(100% - 32px));
+  /* The same height on every tab, so the panel doesn't jump. */
+  height: min(540px, calc(100% - 48px));
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px oklch(0% 0 0 / 40%);
+}
+
+.bl-help-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px 20px;
+  font-weight: 600;
+}
+
+.bl-help-panel header button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bl-text);
+}
+
+/* One category at a time, picked from tabs that wrap on narrow boards. */
+.bl-help-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid var(--bl-border);
+}
+
+.bl-help-tabs button {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bl-text-dim);
+  font-size: 13px;
+}
+
+.bl-help-tabs button:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-help-tabs button.active {
+  background: var(--bl-panel-2);
+  color: var(--bl-text);
+  font-weight: 600;
+}
+
+.bl-help-list {
+  overflow-y: auto;
+  padding: 8px 20px 16px;
+}
+
+/* The keys as chips in a column of their own, what they do beside them. */
+.bl-help-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 44%) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+.bl-help-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bl-help-row kbd {
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--bl-text);
+  background: var(--bl-panel-2);
+  border-radius: 4px;
+}
+
+.bl-help-what {
+  overflow-wrap: anywhere;
+}
+
+.presenting .bl-toolbar,
+.presenting .bl-flyout,
+.presenting .bl-slide-panel,
+.presenting .bl-view-controls,
+.presenting .bl-readonly-badge,
+.presenting .bl-selection-toolbar,
+.presenting .bl-size-label,
+.presenting .bl-find-bar,
+.presenting .bl-history-panel {
+  display: none !important;
+}
+
+.bl-present-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  cursor: default;
+}
+
+.bl-present-counter {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: oklch(0% 0 0 / 35%);
+  color: oklch(100% 0 0 / 85%);
+  font-size: 12px;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+
+.bl-present-overlay:hover .bl-present-counter {
+  opacity: 1;
+}
+
+.bl-present-counter span {
+  opacity: 0.7;
+}
+
+.bl-present-counter button {
+  height: 20px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: oklch(100% 0 0 / 15%);
+  color: inherit;
+  font-size: 11px;
+}
+
+.bl-present-counter button.active {
+  background: oklch(62% 0.22 25);
+}
+
+/* The laser pointer replaces the mouse cursor. */
+.bl-present-overlay.laser {
+  cursor: none;
+}
+
+.bl-laser {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The presenting order, left of the view controls. */
+.bl-slide-panel {
+  position: absolute;
+  top: 16px;
+  right: 64px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  max-height: calc(100% - 32px);
+  background: var(--bl-panel);
+  border: 1px solid var(--bl-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
+  font-size: 13px;
+}
+
+.bl-slide-panel header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--bl-border);
+}
+
+.bl-slide-panel header > span {
+  flex: 1;
+}
+
+.bl-slide-panel header button {
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--bl-text);
+}
+
+.bl-slide-panel header .bl-slide-present {
+  gap: 4px;
+  padding: 0 10px;
+  background: var(--bl-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.bl-slide-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.bl-slide-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 4px 0 8px;
+  border-radius: 6px;
+  cursor: grab;
+}
+
+.bl-slide-list li:hover {
+  background: var(--bl-panel-2);
+}
+
+.bl-slide-list li.dragging {
+  opacity: 0.4;
+}
+
+.bl-slide-list li.drop-before {
+  box-shadow: inset 0 2px 0 var(--bl-accent);
+}
+
+.bl-slide-list li.bl-slide-drop-end {
+  height: 2px;
+  background: var(--bl-accent);
+}
+
+.bl-slide-number {
+  width: 18px;
+  color: var(--bl-text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bl-slide-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bl-slide-list li button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bl-text-dim);
+  opacity: 0;
+}
+
+.bl-slide-list li:hover button {
+  opacity: 1;
+}
+
+.bl-slide-empty,
+.bl-slide-hint {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--bl-text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bl-slide-hint {
+  padding-top: 4px;
+}
+
+/* ---- narrow boards: the tool bar runs along the bottom, panels span the width ---- */
+@container bl-board (max-width: 560px) {
+  .bl-toolbar {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .bl-toolbar button {
+    flex: none;
+  }
+  .bl-view-controls {
+    top: 12px;
+    right: 12px;
+  }
+  .bl-readonly-badge {
+    top: 12px;
+    left: 12px;
+  }
+  .bl-rail-sep {
+    width: 1px;
+    height: auto;
+    margin: 4px 2px;
+  }
+  .bl-flyout {
+    top: auto;
+    bottom: 68px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    flex-wrap: wrap;
+  }
+  .bl-flyout-shapes {
+    flex-direction: row;
+    width: auto;
+  }
+  .bl-flyout-shapes .bl-flyout-label,
+  .bl-flyout-shapes kbd {
+    display: none;
+  }
+  .bl-flyout-draw {
+    grid-template-columns: repeat(auto-fill, 32px);
+  }
+  .bl-icon-picker {
+    width: auto;
+    max-height: calc(100cqh - 96px);
+  }
+  .bl-find-bar {
+    top: 12px;
+    left: 12px;
+    right: 64px;
+  }
+  .bl-slide-panel {
+    top: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100% - 96px);
+  }
+  .bl-find-bar input {
+    flex: 1;
+    min-width: 0;
+  }
+  .bl-history-panel {
+    width: 100%;
+  }
+}
+
+/* Bigger targets for fingers. */
+@media (pointer: coarse) {
+  .bl-toolbar button {
+    min-width: 40px;
+    height: 40px;
+  }
+  .bl-control-group button {
+    width: 40px;
+    height: 40px;
+  }
+}

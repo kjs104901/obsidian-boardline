@@ -1,0 +1,700 @@
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { ARROW_LENGTH, capPrimitives } from '@boardline/core/engine/caps'
+import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
+import { MoreIcon, ShapeIcon, TableIcon } from './icons'
+import { IconGlyph, IconPicker } from './IconPicker'
+import { BASIC_SHAPES } from './shapeKinds'
+import { MenuItem, ObjectMenuItems, TABLE_OPS, tableOpDisabled } from './ObjectMenu'
+import { tableAligns, tableCellColors } from '@boardline/core/engine/table'
+import type { IconStyle } from '@boardline/core/icons/iconData'
+import { baseColor, PALETTE, strokeColor } from '@boardline/core/theme/palette'
+import { hasMarkAll, type MarkName } from '@boardline/core/engine/richText'
+import {
+  hasTextStyle,
+  isConnector,
+  isFlowShape,
+  isMindmap,
+  isShape,
+  type BoardObject,
+  type ColorKey,
+  type ConnectorKind,
+  type ConnectorObject,
+  type Deco,
+  type EndCap,
+  type ShapeObject,
+  type TextAlign,
+  type TextSize,
+} from '@boardline/core/board/model'
+
+interface Props {
+  editor: BoardEditor
+  status: EditorStatus
+  /** Short message for the user (copied, saved, …). */
+  onNotice?: (text: string) => void
+  onOpenLink?: (link: string) => void
+  /** Open the link box: link the selected shapes, or point a link object elsewhere. */
+  onLinkDialog?: (mode: 'shape' | 'edit', id?: string, initial?: string) => void
+  /** Make a note of the selection; absent where the app can't save notes. */
+  onExportNote?: () => void
+}
+
+const DECOS: { deco: Deco; label: string }[] = [
+  { deco: 'fill', label: '채우기' },
+  { deco: 'outline', label: '외곽선' },
+  { deco: 'dashed', label: '점선 외곽선' },
+  { deco: 'transparent', label: '투명 (글자만)' },
+]
+
+const CAPS: { cap: EndCap; label: string }[] = [
+  { cap: 'none', label: '없음' },
+  { cap: 'arrow', label: '화살표' },
+  { cap: 'circle', label: '원' },
+  { cap: 'diamond', label: '마름모' },
+  { cap: 'fork', label: '갈래' },
+  { cap: 'zero-one', label: '0..1' },
+  { cap: 'one-one', label: '1..1' },
+  { cap: 'zero-many', label: '0..N' },
+  { cap: 'one-many', label: '1..N' },
+]
+
+type Menu = 'color' | 'shape' | 'deco' | 'icon' | 'table' | 'more' | 'startCap' | 'endCap' | 'textSize' | 'align' | 'list' | 'lineKind' | null
+
+/** Line shapes, with their toolbar icons. */
+export const LINE_KINDS: { kind: ConnectorKind; label: string; icon: string }[] = [
+  { kind: 'elbow', label: '꺾은선', icon: 'M3.5 14V8.5a2 2 0 0 1 2-2h9' },
+  { kind: 'straight', label: '직선', icon: 'M3.5 14.5l11-11' },
+  { kind: 'curved', label: '곡선', icon: 'M3.5 14.5C3.5 7 14.5 11 14.5 3.5' },
+]
+
+const TEXT_SIZE_NAMES: { size: TextSize; short: string; label: string }[] = [
+  { size: 's', short: 'S', label: '작게' },
+  { size: 'm', short: 'M', label: '보통' },
+  { size: 'l', short: 'L', label: '크게' },
+  { size: 'xl', short: 'XL', label: '아주 크게' },
+  { size: 'xxl', short: 'XXL', label: '제목' },
+]
+
+const ALIGN_PATHS: Record<TextAlign, string> = {
+  left: 'M3 4.5h12M3 9h8M3 13.5h10',
+  center: 'M3 4.5h12M5 9h8M4 13.5h10',
+  right: 'M3 4.5h12M7 9h8M5 13.5h10',
+}
+
+const TEXT_ALIGNS: { align: TextAlign; label: string }[] = [
+  { align: 'left', label: '왼쪽 정렬' },
+  { align: 'center', label: '가운데 정렬' },
+  { align: 'right', label: '오른쪽 정렬' },
+]
+
+const LIST_ICON = 'M7.5 5h7.5M7.5 9h7.5M7.5 13h7.5M3.8 5h.01M3.8 9h.01M3.8 13h.01'
+
+const ICON_LOOKS: { style: IconStyle; label: string }[] = [
+  { style: 'color', label: '컬러' },
+  { style: 'fill', label: '채움' },
+  { style: 'outline', label: '외곽선' },
+]
+
+const TOOLBAR_HEIGHT = 40
+const TOOLBAR_GAP = 24
+
+const RECENT_KEY = 'boardline.recentColors'
+
+function recentColors(): ColorKey[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+    return Array.isArray(list) ? list.filter((c): c is ColorKey => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 5) : []
+  } catch {
+    return []
+  }
+}
+
+function rememberColor(c: ColorKey): void {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([c, ...recentColors().filter((x) => x !== c)].slice(0, 5)))
+  } catch {
+    // Recent colors are a convenience only.
+  }
+}
+
+/** Floating toolbar above the selection. */
+export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkDialog, onExportNote }: Props) {
+  // An open menu belongs to the selection it was opened for: picking something else (or
+  // nothing) starts the next toolbar closed.
+  const selectionKey = status.selected.map((o) => o.id).join(' ')
+  const [open, setOpen] = useState<{ menu: Menu; for: string }>({ menu: null, for: '' })
+  const menu = open.for === selectionKey ? open.menu : null
+  const setMenu = (m: Menu) => setOpen({ menu: m, for: selectionKey })
+  if (open.menu && open.for !== selectionKey) setOpen({ menu: null, for: '' })
+  const [pickStyle, setPickStyle] = useState<IconStyle>('fill')
+  const barRef = useRef<HTMLDivElement>(null)
+  // The bar stays inside the board when the selection is near its left or right edge.
+  useLayoutEffect(() => {
+    const bar = barRef.current
+    const parent = bar?.offsetParent as HTMLElement | null
+    if (!bar || !parent) return
+    if (bar.classList.contains('beside')) {
+      // Beside a node near the board's edge: over (or under) the node instead.
+      bar.style.top = `${top}px`
+      bar.style.left = `${left}px`
+      bar.style.transform = ''
+      const onLeft = bar.classList.contains('on-left')
+      if (onLeft ? left - bar.offsetWidth >= 8 : left + bar.offsetWidth <= parent.clientWidth - 8) return
+      bar.style.transform = 'none'
+      const above = Number(bar.dataset.above)
+      bar.style.top = `${above >= 8 ? above : Number(bar.dataset.below)}px`
+      bar.style.left = `${Math.max(8, Math.min(Number(bar.dataset.nodeLeft), parent.clientWidth - bar.offsetWidth - 8))}px`
+      return
+    }
+    const half = bar.offsetWidth / 2
+    const center = parseFloat(bar.style.left)
+    const fitted = Math.max(half + 8, Math.min(center, parent.clientWidth - half - 8))
+    if (fitted !== center) bar.style.left = `${fitted}px`
+  })
+  // While text is typed, the bar keeps only its text buttons, which act on the selected words.
+  const typing = status.textEditing
+  const box = typing?.box ?? status.selectionBox
+  if (!box || status.selected.length === 0) return null
+
+  const shapes = status.selected.filter(isShape)
+  // Kind and style only apply to flowchart shapes; stickies, text and sections keep theirs.
+  const flow = shapes.length > 0 && shapes.every(isFlowShape) ? shapes : []
+  const connectors = status.selected.filter(isConnector)
+  const first = status.selected[0]
+  const locked = status.selected.every((o) => o.locked)
+  const anyLocked = status.selected.some((o) => o.locked)
+  const apply = (label: string, fn: (o: BoardObject) => BoardObject) => {
+    editor.updateSelected(label, fn)
+    setMenu(null)
+  }
+  const run = (fn: () => void) => () => {
+    fn()
+    setMenu(null)
+  }
+  const onShapes = (fn: (s: ShapeObject) => ShapeObject) => (o: BoardObject) => (isShape(o) ? fn(o) : o)
+  const onConnectors = (fn: (c: ConnectorObject) => ConnectorObject) => (o: BoardObject) => (isConnector(o) ? fn(o) : o)
+  const same = <T,>(values: T[]) => (values.every((v) => v === values[0]) ? values[0] : undefined)
+
+  // Text: size, marks (on the selected words while typing, else on all the text), alignment, lists.
+  const texts = status.selected.filter(hasTextStyle).filter((t) => !typing || t.id === typing.id)
+  const textSize = same(texts.map((t) => t.textSize ?? 'm'))
+  const textAlign = same(texts.map((t) => t.align ?? (t.shape === 'text' || t.shape === 'sticky' ? 'left' : 'center')))
+  const allOn = (mark: MarkName) => (typing ? typing.marks[mark] : texts.length > 0 && texts.every((t) => hasMarkAll(t.text, mark)))
+  // Mind map nodes, line labels and table cells take marks too (no sizes, alignment or lists):
+  // while one is typed in, and on selected nodes.
+  const nodes = typing ? [] : status.selected.filter(isMindmap)
+  const wordsOnly = !locked && texts.length === 0 && (!!typing || (nodes.length > 0 && nodes.length === status.selected.length))
+  const wordsOn = (mark: MarkName) => (typing ? typing.marks[mark] : nodes.every((n) => hasMarkAll(n.text, mark)))
+  const markButtons = (on: (mark: MarkName) => boolean) => (
+    <>
+      <button title="굵게 (Ctrl+B)" className={on('bold') ? 'active' : ''} onClick={() => editor.toggleTextStyle('bold')}>
+        <span className="bl-glyph bold">B</span>
+      </button>
+      <button title="기울임 (Ctrl+I)" className={on('italic') ? 'active' : ''} onClick={() => editor.toggleTextStyle('italic')}>
+        <span className="bl-glyph italic">I</span>
+      </button>
+      <button title="취소선 (Ctrl+Shift+X)" className={on('strike') ? 'active' : ''} onClick={() => editor.toggleTextStyle('strike')}>
+        <span className="bl-glyph strike">S</span>
+      </button>
+      {typing && (
+        <>
+          <button title="강조 (Ctrl+Shift+H)" className={on('highlight') ? 'active' : ''} onClick={() => editor.toggleTextStyle('highlight')}>
+            <ToolbarIcon d="M3.5 15h11M5.5 12.5V10l6-6 2.5 2.5-6 6z" />
+          </button>
+          <button title="코드 (Ctrl+E)" className={on('code') ? 'active' : ''} onClick={() => editor.toggleTextStyle('code')}>
+            <ToolbarIcon d="M6.5 5 3 9l3.5 4M11.5 5 15 9l-3.5 4" />
+          </button>
+        </>
+      )}
+    </>
+  )
+
+  const icons = shapes.length > 0 && shapes.every((s) => s.shape === 'icon') ? shapes : []
+  const links = shapes.length > 0 && shapes.every((s) => s.shape === 'link') ? shapes : []
+  // Flowchart shapes and icon objects take an icon.
+  const iconTargets = flow.length > 0 ? flow : icons
+  const iconLook = same(icons.map((s) => s.iconStyle ?? 'color'))
+  const shapeKind = same(flow.map((s) => s.shape))
+  const deco = same(flow.map((s) => s.deco))
+  const line = same(connectors.map((c) => c.line))
+  const kind = same(connectors.map((c) => c.kind))
+  const conn = connectors.length === 1 ? connectors[0] : null
+  const single = status.selected.length === 1 ? first : null
+  const singleLink = single && isShape(single) ? single.link : undefined
+  const editable = single && !single.locked && !(isShape(single) && (single.shape === 'image' || single.shape === 'freehand' || single.shape === 'note'))
+  const size = single && isShape(single) ? `${Math.round(single.w)} x ${Math.round(single.h)}` : null
+
+  // A table's color tints its header; with cells selected, the color fills them instead.
+  const table = single && isShape(single) && single.shape === 'table' ? single : null
+  const cell = table ? status.tableCell : null
+  const cellColor = table && cell ? (tableCellColors(table)[cell.row]?.[cell.col] ?? 'gray') : null
+  const shownColor = cellColor ?? first.color
+  const tableAlign = table ? (cell ? tableAligns(table)[cell.col] : same(tableAligns(table))) : undefined
+  const pickColor = (color: ColorKey) => {
+    if (color.startsWith('#')) rememberColor(color)
+    if (cell && editor.setCellColor(color)) {
+      setMenu(null)
+      return
+    }
+    apply('색 바꾸기', (o) => ({ ...o, color }))
+  }
+
+  // Above the selection, centered (below when there is no room). Mind map nodes sit close
+  // together vertically, so their bar goes to the right instead.
+  // The gap keeps the bar clear of the connection dots and resize handles on the edge.
+  const onlyNodes = status.selected.every(isMindmap)
+  const above = box.y - TOOLBAR_HEIGHT - TOOLBAR_GAP
+  const below = above < 8
+  const top = onlyNodes ? box.y + box.h / 2 - TOOLBAR_HEIGHT / 2 : below ? box.y + box.h + TOOLBAR_GAP + (size ? 24 : 0) : above
+  // A node's bar clears its "+" (add a branch) button, and a folded node's count before it.
+  const folded = onlyNodes && single && isMindmap(single) && single.collapsed
+  // A node on its root's left side has its bar on the left (its branches and "+" grow that way).
+  const leftSide = onlyNodes && !!single && editor.nodeOnLeft(single.id)
+  const clear = TOOLBAR_GAP + 24 + (folded ? 28 * status.zoom : 0)
+  const left = onlyNodes ? (leftSide ? box.x - clear : box.x + box.w + clear) : box.x + box.w / 2
+
+  // Cropping a picture: keep the frame, frame the whole picture again, or go back.
+  if (status.cropping) {
+    return (
+      <div ref={barRef} className="bl-selection-toolbar" style={{ top, left }} onPointerDown={(e) => e.stopPropagation()}>
+        <button title="자르기 적용 (Enter)" onClick={() => editor.finishCrop()}>
+          <ToolbarIcon d="M4 9.5l3.5 3.5L14 5.5" />
+        </button>
+        <button title="그림 전체로" onClick={() => editor.cropToWhole()}>
+          <ToolbarIcon d="M3 6.5V3h3.5M11.5 3H15v3.5M15 11.5V15h-3.5M6.5 15H3v-3.5" />
+        </button>
+        <button title="취소 (Esc)" onClick={() => editor.finishCrop(false)}>
+          <ToolbarIcon d="M5 5l8 8M13 5l-8 8" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {size && !onlyNodes && !typing && (
+        <div className="bl-size-label" style={{ top: box.y + box.h + 8, left: box.x + box.w / 2 }}>
+          {size}
+        </div>
+      )}
+      <div
+        ref={barRef}
+        className={'bl-selection-toolbar' + (onlyNodes ? ' beside' : '') + (leftSide ? ' on-left' : '')}
+        style={{ top, left }}
+        data-above={box.y - TOOLBAR_HEIGHT - 12}
+        data-below={box.y + box.h + 12}
+        data-node-left={box.x}
+        onPointerDown={(e) => e.stopPropagation()}
+        // Clicks on the bar keep the focus (and the selected words) in the text being typed.
+        onMouseDown={(e) => typing && !(e.target instanceof HTMLInputElement) && e.preventDefault()}
+      >
+        {!typing && onlyNodes && single && !single.locked && (
+          <>
+            <button title="자식 노드 추가 (Tab)" onClick={run(() => editor.addChildNode(single.id))}>
+              <ToolbarIcon d="M3 9h5M8 4.5v9M8 4.5h3M8 13.5h3M13.5 4.5h2M13.5 13.5h2M14.5 3.5v2M14.5 12.5v2" />
+            </button>
+            {isMindmap(single) && single.parentId && (
+              <button title="형제 노드 추가 (Enter)" onClick={run(() => editor.addSiblingNode(single.id))}>
+                <ToolbarIcon d="M4 5h7M4 10h7M13.5 13.5h3M15 12v3" />
+              </button>
+            )}
+            {isMindmap(single) && editor.branchCount(single.id) > 0 && (
+              <button title={single.collapsed ? '가지 펼치기 (/)' : '가지 접기 (/)'} onClick={run(() => editor.toggleFold())}>
+                <ToolbarIcon d={single.collapsed ? 'M9 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M6.5 9h5M9 6.5v5' : 'M9 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M6.5 9h5'} />
+              </button>
+            )}
+            <span className="bl-sep" />
+          </>
+        )}
+        {editable && !typing && (
+          <button title="텍스트 추가 (Enter)" onClick={run(() => editor.editSelection())}>
+            <ToolbarIcon d="M4 4h10M9 4v10" />
+          </button>
+        )}
+        {single && isShape(single) && single.shape === 'image' && !single.locked && (
+          <button title="자르기 (Enter)" onClick={run(() => editor.startCrop())}>
+            <ToolbarIcon d="M5.5 2.5v10h10M2.5 5.5h10v10" />
+          </button>
+        )}
+
+        {!locked && texts.length > 0 && (
+          <>
+            <span className="bl-text-size">
+              <button title="글자 작게 (Ctrl+Shift+,)" disabled={textSize === 's'} onClick={() => editor.stepTextSize(-1)}>
+                <ToolbarIcon d="M5 9h8" />
+              </button>
+              <span className="bl-menu-anchor">
+                <button title="글자 크기" className="bl-text-size-value" onClick={() => setMenu(menu === 'textSize' ? null : 'textSize')}>
+                  {TEXT_SIZE_NAMES.find((n) => n.size === textSize)?.short ?? '–'}
+                </button>
+                {menu === 'textSize' && (
+                  <div className="bl-menu bl-text-size-menu">
+                    {TEXT_SIZE_NAMES.map((n) => (
+                      <button key={n.size} className={'bl-menu-item' + (textSize === n.size ? ' active' : '')} onClick={run(() => editor.setTextSize(n.size))}>
+                        <span>{n.label}</span>
+                        <kbd>{n.short}</kbd>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </span>
+              <button title="글자 크게 (Ctrl+Shift+.)" disabled={textSize === 'xxl'} onClick={() => editor.stepTextSize(1)}>
+                <ToolbarIcon d="M5 9h8M9 5v8" />
+              </button>
+            </span>
+            {markButtons(allOn)}
+            <div className="bl-menu-anchor">
+              <button title="정렬" onClick={() => setMenu(menu === 'align' ? null : 'align')}>
+                <ToolbarIcon d={ALIGN_PATHS[textAlign ?? 'left']} />
+              </button>
+              {menu === 'align' && (
+                <div className="bl-menu bl-align-menu">
+                  {TEXT_ALIGNS.map((a) => (
+                    <button key={a.align} title={a.label} className={textAlign === a.align ? 'active' : ''} onClick={run(() => editor.setTextAlign(a.align))}>
+                      <ToolbarIcon d={ALIGN_PATHS[a.align]} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="bl-menu-anchor">
+              <button title="목록" onClick={() => setMenu(menu === 'list' ? null : 'list')}>
+                <ToolbarIcon d={LIST_ICON} />
+              </button>
+              {menu === 'list' && (
+                <div className="bl-menu bl-list-menu">
+                  <MenuItem label="• 글머리 기호" keys="Ctrl+Shift+8" onClick={run(() => editor.toggleList('bullet'))} />
+                  <MenuItem label="1. 번호 매기기" keys="Ctrl+Shift+7" onClick={run(() => editor.toggleList('number'))} />
+                  <MenuItem label="☐ 할 일 목록" keys="Ctrl+Shift+9" onClick={run(() => editor.toggleList('task'))} />
+                </div>
+              )}
+            </div>
+            {!typing && <span className="bl-sep" />}
+          </>
+        )}
+
+        {wordsOnly && (
+          <>
+            {markButtons(wordsOn)}
+            {!typing && <span className="bl-sep" />}
+          </>
+        )}
+
+        {!typing && (
+          <>
+          {!locked && flow.length > 0 && (
+            <div className="bl-menu-anchor">
+              <button title="도형 종류" onClick={() => setMenu(menu === 'shape' ? null : 'shape')}>
+                <ShapeIcon kind={shapeKind ?? 'rect'} />
+              </button>
+              {menu === 'shape' && (
+                <div className="bl-menu bl-shape-menu">
+                  {BASIC_SHAPES.map((s) => (
+                    <button
+                      key={s.kind}
+                      title={s.key ? `${s.label} (${s.key})` : s.label}
+                      className={shapeKind === s.kind ? 'active' : ''}
+                      onClick={() => apply('모양 바꾸기', onShapes((o) => ({ ...o, shape: s.kind })))}
+                    >
+                      <ShapeIcon kind={s.kind} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!locked && (
+            <div className="bl-menu-anchor">
+              <button title={table ? (cell ? '칸 색' : '머리글 색') : '색'} onClick={() => setMenu(menu === 'color' ? null : 'color')}>
+                <span className="bl-swatch" style={{ background: strokeColor(shownColor) }} />
+              </button>
+              {menu === 'color' && (
+                <div className="bl-menu bl-color-menu">
+                  {PALETTE.map((p) => (
+                    <button key={p.key} title={p.name} className={shownColor === p.key ? 'active' : ''} onClick={() => pickColor(p.key)}>
+                      <span className="bl-swatch" style={{ background: baseColor(p.key) }} />
+                    </button>
+                  ))}
+                  {recentColors().map((c) => (
+                    <button key={c} title={c} className={shownColor === c ? 'active' : ''} onClick={() => pickColor(c)}>
+                      <span className="bl-swatch" style={{ background: c }} />
+                    </button>
+                  ))}
+                  <label className="bl-custom-color" title="다른 색">
+                    +
+                    <input
+                      type="color"
+                      defaultValue={shownColor.startsWith('#') ? shownColor : '#7c5cff'}
+                      onChange={(e) => pickColor(e.currentTarget.value.toLowerCase() as ColorKey)}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!locked && flow.length > 0 && (
+            <div className="bl-menu-anchor">
+              <button title="스타일" onClick={() => setMenu(menu === 'deco' ? null : 'deco')}>
+                <DecoIcon deco={deco ?? 'outline'} />
+              </button>
+              {menu === 'deco' && (
+                <div className="bl-menu bl-deco-menu">
+                  {DECOS.map((d) => (
+                    <button key={d.deco} title={d.label} className={deco === d.deco ? 'active' : ''} onClick={() => apply('스타일', onShapes((o) => ({ ...o, deco: d.deco })))}>
+                      <DecoIcon deco={d.deco} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!locked && iconTargets.length > 0 && (
+            <div className="bl-menu-anchor">
+              <button title={icons.length ? '아이콘 바꾸기' : '아이콘'} className={menu === 'icon' ? 'active' : ''} onClick={() => setMenu(menu === 'icon' ? null : 'icon')}>
+                {iconTargets[0].icon ? <IconGlyph name={iconTargets[0].icon} style="outline" size={18} /> : <ToolbarIcon d="M9 2.5l1.9 4 4.4.5-3.3 3 .9 4.3L9 12.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z" />}
+              </button>
+              {menu === 'icon' && (
+                <div className="bl-menu bl-icon-menu">
+                  <IconPicker
+                    style={icons.length ? (iconLook ?? 'color') : pickStyle}
+                    onStyle={(s) => (icons.length ? editor.updateSelected('아이콘 모양', onShapes((o) => ({ ...o, iconStyle: s }))) : setPickStyle(s))}
+                    onPick={(name) => {
+                      editor.setIcon(name, icons.length ? undefined : pickStyle)
+                      setMenu(null)
+                    }}
+                    onRemove={flow.some((s) => s.icon) ? () => (editor.setIcon(null), setMenu(null)) : undefined}
+                    onClose={() => setMenu(null)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {!locked && icons.length > 0 &&
+            ICON_LOOKS.map((l) => (
+              <button
+                key={l.style}
+                title={l.label}
+                className={iconLook === l.style ? 'active' : ''}
+                onClick={() => apply('아이콘 모양', onShapes((o) => ({ ...o, iconStyle: l.style })))}
+              >
+                <IconGlyph name={icons[0].icon ?? 'star'} style={l.style} size={18} tint="currentColor" />
+              </button>
+            ))}
+
+          {!locked && flow.length > 0 && (
+            <button title="90° 회전" onClick={run(() => editor.rotateSelected())}>
+              <ToolbarIcon d="M14 9a5 5 0 1 1-1.5-3.5M14 3v3h-3" />
+            </button>
+          )}
+
+          {!locked && shapes.length === 1 && shapes[0].shape === 'table' && (
+            <div className="bl-menu-anchor">
+              <button
+                title={status.tableCell ? `표 (선택한 칸: ${status.tableCell.row + 1}행 ${status.tableCell.col + 1}열)` : '표 (마지막 행·열 기준)'}
+                onClick={() => setMenu(menu === 'table' ? null : 'table')}
+              >
+                <TableIcon />
+              </button>
+              {menu === 'table' && (
+                <div className="bl-menu bl-table-menu">
+                  {TABLE_OPS.map((t) => (
+                    <Fragment key={t.op}>
+                      {t.sep && <hr />}
+                      <MenuItem
+                        label={t.label + (t.op === 'header' && shapes[0].header !== false ? ' ✓' : '')}
+                        keys={t.key}
+                        disabled={tableOpDisabled(t.op, status)}
+                        onClick={run(() => editor.tableEdit(t.op))}
+                      />
+                    </Fragment>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!locked && table && (
+            <div className="bl-menu-anchor">
+              <button title={cell ? '선택한 칸의 열 정렬' : '모든 열 정렬'} onClick={() => setMenu(menu === 'align' ? null : 'align')}>
+                <ToolbarIcon d={ALIGN_PATHS[tableAlign ?? 'left']} />
+              </button>
+              {menu === 'align' && (
+                <div className="bl-menu bl-align-menu">
+                  {TEXT_ALIGNS.map((a) => (
+                    <button key={a.align} title={a.label} className={tableAlign === a.align ? 'active' : ''} onClick={run(() => editor.setCellAlign(a.align))}>
+                      <ToolbarIcon d={ALIGN_PATHS[a.align]} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!locked && connectors.length > 0 && (
+            <>
+              <span className="bl-sep" />
+              <button title="실선" className={line === 'solid' ? 'active' : ''} onClick={() => apply('선 스타일', onConnectors((c) => ({ ...c, line: 'solid' })))}>
+                <ToolbarIcon d="M3 9h12" />
+              </button>
+              <button title="점선" className={line === 'dashed' ? 'active' : ''} onClick={() => apply('선 스타일', onConnectors((c) => ({ ...c, line: 'dashed' })))}>
+                <ToolbarIcon d="M3 9h2.5M7.75 9h2.5M12.5 9h2.5" />
+              </button>
+              <div className="bl-menu-anchor">
+                <button title="선 모양" onClick={() => setMenu(menu === 'lineKind' ? null : 'lineKind')}>
+                  <ToolbarIcon d={LINE_KINDS.find((k) => k.kind === kind)?.icon ?? LINE_KINDS[0].icon} />
+                </button>
+                {menu === 'lineKind' && (
+                  <div className="bl-menu bl-align-menu">
+                    {LINE_KINDS.map((k) => (
+                      <button key={k.kind} title={k.label} className={kind === k.kind ? 'active' : ''} onClick={() => apply('선 종류', onConnectors((c) => ({ ...c, kind: k.kind })))}>
+                        <ToolbarIcon d={k.icon} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {!locked && conn && (
+            <>
+              <span className="bl-sep" />
+              <CapMenu
+                atStart
+                title="시작 모양"
+                value={conn.startCap}
+                open={menu === 'startCap'}
+                onToggle={() => setMenu(menu === 'startCap' ? null : 'startCap')}
+                onPick={(cap) => apply('끝 모양', onConnectors((c) => ({ ...c, startCap: cap })))}
+              />
+              <button
+                title="방향 바꾸기"
+                onClick={() => apply('방향 바꾸기', onConnectors((c) => ({ ...c, from: c.to, to: c.from, startCap: c.endCap, endCap: c.startCap })))}
+              >
+                <ToolbarIcon d="M3 6.5h11.5M12 4l2.5 2.5L12 9M15 11.5H3.5M6 9l-2.5 2.5L6 14" />
+              </button>
+              <CapMenu
+                title="끝 모양"
+                value={conn.endCap}
+                open={menu === 'endCap'}
+                onToggle={() => setMenu(menu === 'endCap' ? null : 'endCap')}
+                onPick={(cap) => apply('끝 모양', onConnectors((c) => ({ ...c, endCap: cap })))}
+              />
+            </>
+          )}
+
+          {singleLink && (
+            <button title={isShape(single) && single.shape === 'note' ? '노트 열기 (더블클릭)' : '링크 열기 (Ctrl+클릭)'} onClick={run(() => onOpenLink?.(singleLink))}>
+              <ToolbarIcon d="M10 3h5v5M15 3L8 10M13 11v3.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5H7" />
+            </button>
+          )}
+          {!locked && links.length > 0 && (
+            <button title={links.every((l) => l.expanded) ? '한 줄로 보기' : '카드로 보기 (설명과 그림)'} className={links.every((l) => l.expanded) ? 'active' : ''} onClick={run(() => editor.toggleLinkCard())}>
+              <ToolbarIcon d="M3 4h12v10H3zM3 9h12" />
+            </button>
+          )}
+          {!locked && links.length === 1 && (
+            <button title="링크 바꾸기" onClick={run(() => onLinkDialog?.('edit', links[0].id, links[0].link))}>
+              <ToolbarIcon d="M7.5 10.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.8.8M10.5 7.5a3 3 0 0 0-4.2 0L4 9.8A3 3 0 0 0 8.2 14l.8-.8" />
+            </button>
+          )}
+          <span className="bl-sep" />
+          <button title="복제 (Ctrl+D)" onClick={run(() => editor.duplicateSelection())}>
+            <ToolbarIcon d="M6 6h8v8H6zM4 12V4h8" />
+          </button>
+          {anyLocked && (
+            <button title="잠금 해제 (Shift+L)" className="active" onClick={run(() => editor.toggleLock())}>
+              <ToolbarIcon d="M5 8h8v7H5zM7 8V6a2 2 0 0 1 4 0v2" />
+            </button>
+          )}
+          <div className="bl-menu-anchor">
+            <button title="더 보기" className={menu === 'more' ? 'active' : ''} onClick={() => setMenu(menu === 'more' ? null : 'more')}>
+              <MoreIcon />
+            </button>
+            {menu === 'more' && (
+              <div className="bl-menu bl-more-menu">
+                <ObjectMenuItems editor={editor} status={status} done={() => setMenu(null)} onNotice={onNotice} onLinkDialog={onLinkDialog} onExportNote={onExportNote} />
+              </div>
+            )}
+          </div>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
+function ToolbarIcon({ d }: { d: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  )
+}
+
+function DecoIcon({ deco }: { deco: Deco }) {
+  const common = { x: 3.5, y: 4.5, width: 11, height: 9, rx: 2 }
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+      {deco === 'fill' && <rect {...common} fill="currentColor" />}
+      {deco === 'outline' && <rect {...common} />}
+      {deco === 'dashed' && <rect {...common} strokeDasharray="3 2" />}
+      {deco === 'transparent' && (
+        <>
+          <rect {...common} strokeOpacity="0.3" strokeDasharray="1 2" />
+          <path d="M6.5 7.5h5M9 7.5v4" />
+        </>
+      )}
+    </svg>
+  )
+}
+
+function CapMenu(props: { title: string; atStart?: boolean; value: EndCap; open: boolean; onToggle: () => void; onPick: (cap: EndCap) => void }) {
+  return (
+    <div className="bl-menu-anchor">
+      <button title={props.title} onClick={props.onToggle}>
+        <CapIcon cap={props.value} atStart={props.atStart} />
+      </button>
+      {props.open && (
+        <div className="bl-menu bl-cap-menu">
+          {CAPS.map((c) => (
+            <button key={c.cap} title={c.label} className={props.value === c.cap ? 'active' : ''} onClick={() => props.onPick(c.cap)}>
+              <CapIcon cap={c.cap} atStart={props.atStart} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A short line ending in `cap`, drawn with the board's own cap shapes (caps.ts). */
+function CapIcon({ cap, atStart }: { cap: EndCap; atStart?: boolean }) {
+  const pts = [
+    { x: 3, y: 10 },
+    { x: 37, y: 10 },
+  ]
+  // A filled arrow keeps its sharp tip: the line stops short of it, as on the board.
+  const cut = cap === 'arrow' ? ARROW_LENGTH - 2 : 0
+  const x0 = atStart ? 3 + cut : 3
+  const x1 = atStart ? 37 : 37 - cut
+  return (
+    <svg width="28" height="14" viewBox="0 0 40 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={`M${x0} 10H${x1}`} />
+      {capPrimitives(pts, cap, !!atStart).map((p, i) => {
+        switch (p.kind) {
+          case 'polygon':
+            return <polygon key={i} points={p.points.map((q) => `${q.x},${q.y}`).join(' ')} fill="currentColor" stroke="none" />
+          case 'dot':
+            return <circle key={i} cx={p.center.x} cy={p.center.y} r={p.radius} fill="currentColor" stroke="none" />
+          case 'ring':
+            return <circle key={i} cx={p.center.x} cy={p.center.y} r={p.radius} />
+          case 'lines':
+            return <path key={i} d={p.segments.map(([a, b]) => `M${a.x} ${a.y}L${b.x} ${b.y}`).join('')} />
+        }
+      })}
+    </svg>
+  )
+}

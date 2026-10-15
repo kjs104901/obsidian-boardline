@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.local
+
+# Local test vault and dev automation output
+testws/
+.dev-runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

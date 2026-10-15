@@ -1,0 +1,9 @@
+{
+  "id": "boardline",
+  "name": "Boardline",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.6",
+  "description": "Whiteboards in your vault: flowcharts, mind maps, sequence diagrams, tables and sticky notes in .board files, with your notes and pictures on the board.",
+  "author": "Boardline",
+  "isDesktopOnly": false
+}
