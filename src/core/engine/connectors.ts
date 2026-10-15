@@ -4,6 +4,7 @@
 import { isShape, type BoardObject, type ConnectorObject, type Endpoint, type SegmentPin, type SegmentPins, type Side } from '../board/model'
 import { GRID, type Point, type Rect } from './geometry'
 import { routeBetweenSides } from './orthoRoute'
+import { borderPoint } from './outline'
 
 /** Outer margin around shapes: stubs leave a shape by at least this much (two grid steps). */
 export const STUB = 40
@@ -49,7 +50,8 @@ export function resolveEnd(e: Endpoint, lookup: Lookup): ResolvedEnd | null {
   if (!isShape(o)) return null
   // A point on an actor's lifeline behaves like a free point that follows the actor.
   if (e.dy !== undefined) return { point: { x: o.x + o.w / 2, y: o.y + e.dy }, dir: null, rect: null }
-  return e.side ? { point: sidePoint(o, e.side), dir: SIDE_DIR[e.side], rect: o } : { point: center(o), dir: null, rect: o }
+  if (!e.side) return { point: center(o), dir: null, rect: o }
+  return { point: e.at === undefined ? sidePoint(o, e.side) : borderPoint(o, e.side, e.at), dir: SIDE_DIR[e.side], rect: o }
 }
 
 // ---- normalization: rotate/mirror so the source leaves towards +x -------------------

@@ -131,12 +131,13 @@ export type Side = 'top' | 'right' | 'bottom' | 'left'
 
 /**
  * One end of a connector.
- * - attached + side: pinned to the middle of that side
+ * - attached + side: pinned to the middle of that side, or with `at` to that spot along it
+ *   (0 its top or left end, 1 the other), on the shape's outline
  * - attached, no side: "floating" end aimed at the shape's center; the router picks the side
  * - not attached: a free point on the board
  * - on an actor's lifeline: `dy` below the actor's top (sequence diagram messages)
  */
-export type Endpoint = { objectId: string; side?: Side; dy?: number } | { point: { x: number; y: number } }
+export type Endpoint = { objectId: string; side?: Side; at?: number; dy?: number } | { point: { x: number; y: number } }
 
 export type ConnectorKind = 'elbow' | 'straight' | 'curved'
 export type LineStyle = 'solid' | 'dashed'

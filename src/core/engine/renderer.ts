@@ -25,6 +25,7 @@ import {
   type Lookup,
 } from './connectors'
 import { GRID, expandRect, rectsIntersect, type Point, type Rect } from './geometry'
+import { borderPoint } from './outline'
 import { branchCurve, foldBadge, levelStyle, outerEdge, type MindmapLayout, type NodeBox } from './mindmap'
 import { actorBounds, lifeline } from './sequence'
 import { cellRect, layoutTable, tableParts, type CellRange } from './table'
@@ -74,7 +75,8 @@ export interface RenderState {
   showHandles: boolean
   guides: Guide[]
   /** Connection (or add-actor) dots on the single selected shape; all four sides by default. */
-  dots: { shape: ShapeObject; hover: Side | null; sides?: Side[] } | null
+  /** Side dots; `at`: a line end pinned along the hovered side there instead of its middle. */
+  dots: { shape: ShapeObject; hover: Side | null; sides?: Side[]; at?: number } | null
   /** Dragging a mind map node: its outline at the pointer and the node it would attach to. */
   reparent?: { ghost: Rect; target: NodeBox | null; left?: boolean } | null
   /** Selected actor: lifeline length handle, and the "add message" circle under the pointer. */
@@ -243,7 +245,7 @@ export class Renderer {
     if (s.tableMove) this.drawTableMove(vp, s)
     if (s.crop) this.drawCropFrame(vp, s.crop)
     if (s.reparent) this.drawReparent(vp, s.reparent.ghost, s.reparent.target, !!s.reparent.left)
-    if (s.dots) this.drawDots(vp, s.dots.shape, s.dots.hover, s.dots.sides)
+    if (s.dots) this.drawDots(vp, s.dots.shape, s.dots.hover, s.dots.sides, s.dots.at)
     if (s.actorHandles) this.drawActorHandles(vp, s.actorHandles.stemEnd, s.actorHandles.message)
     if (s.nodeAdd) {
       this.drawPlus(vp, s.nodeAdd.child, s.nodeAdd.hover === 'child')
@@ -1012,16 +1014,17 @@ export class Renderer {
     }
   }
 
-  private drawDots(vp: Viewport, o: ShapeObject, hover: Side | null, sides: Side[] = SIDES): void {
+  private drawDots(vp: Viewport, o: ShapeObject, hover: Side | null, sides: Side[] = SIDES, at?: number): void {
     const { ctx } = this
-    for (const side of sides) {
-      const p = sidePoint(o, side)
-      const r = (side === hover ? DOT_HOVER_RADIUS : DOT_RADIUS) / vp.zoom
+    const spots: [Side, Point, boolean][] = sides.map((side) => [side, sidePoint(o, side), side === hover && at === undefined])
+    if (hover && at !== undefined) spots.push([hover, borderPoint(o, hover, at), true])
+    for (const [, p, hovered] of spots) {
+      const r = (hovered ? DOT_HOVER_RADIUS : DOT_RADIUS) / vp.zoom
       ctx.beginPath()
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = theme.selection
       ctx.fill()
-      if (side === hover) {
+      if (hovered) {
         // "+" mark inside the hovered dot.
         const a = r * 0.5
         ctx.strokeStyle = theme.handleFill

@@ -80,7 +80,7 @@ export function parseBoard(text: string): BoardDocument {
   return new BoardDocument(meta, objects)
 }
 
-const isNum = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
+const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 
 function isValidEndpoint(e: unknown): e is Endpoint {
   const v = e as Record<string, unknown> | null
@@ -92,6 +92,7 @@ function isValidEndpoint(e: unknown): e is Endpoint {
   return (
     typeof v.objectId === 'string' &&
     (v.side === undefined || ['top', 'right', 'bottom', 'left'].includes(v.side as string)) &&
+    (v.at === undefined || (v.side !== undefined && isNum(v.at) && v.at >= 0 && v.at <= 1)) &&
     (v.dy === undefined || isNum(v.dy))
   )
 }

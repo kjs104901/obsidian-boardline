@@ -225,3 +225,37 @@ describe('lines from a shape to itself and jogs', () => {
     expect(pts(moved, look).slice(0, 3)).toEqual([[100, 140], [100, 160], [40, 160]])
   })
 })
+
+// An end pinned along a side: it leaves the outline there, square to the side.
+describe('ends along a side', () => {
+  it('leave a rectangle side at that spot', () => {
+    const a = shape(0, 0)
+    const b = shape(400, 0)
+    const pts = route([a, b], { objectId: a.id, side: 'right', at: 0.2 }, { objectId: b.id, side: 'left', at: 0.2 })
+    expect(pts?.map((p) => [p.x, p.y])).toEqual([
+      [200, 20],
+      [400, 20],
+    ])
+  })
+
+  it('leave an ellipse on its curve, going straight out', () => {
+    const e = { ...createShape('ellipse', 0, 0, 1), w: 200, h: 100 }
+    const t = shape(0, -300)
+    const pts = route([e, t], { objectId: e.id, side: 'top', at: 0.25 }, { objectId: t.id, side: 'bottom', at: 0.25 })!
+    expect(pts[0].x).toBeCloseTo(50)
+    expect(pts[0].y).toBeCloseTo(50 - 50 * Math.sqrt(0.75), 0)
+    expect(pts[1].x).toBeCloseTo(50)
+    expect(pts[1].y).toBeLessThan(pts[0].y)
+  })
+
+  it('follow the shape when it is resized', () => {
+    const a = shape(0, 0)
+    const map = new Map<string, BoardObject>([[a.id, a]])
+    const c = createConnector({ objectId: a.id, side: 'bottom', at: 0.75 }, { point: { x: 150, y: 400 } }, 2)
+    const before = connectorPolyline(c, (id) => map.get(id))!
+    expect([before[0].x, before[0].y]).toEqual([150, 100])
+    map.set(a.id, { ...a, w: 400 })
+    const after = connectorPolyline(c, (id) => map.get(id))!
+    expect([after[0].x, after[0].y]).toEqual([300, 100])
+  })
+})

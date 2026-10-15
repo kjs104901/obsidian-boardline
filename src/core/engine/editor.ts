@@ -123,6 +123,7 @@ import {
   type ResizeHandle,
 } from './renderer'
 import { UNFILLED, shapePath } from './shapes'
+import { nearestBorder, positionOn } from './outline'
 import { snapMove, snapPoint, type Guide, type SnapMode, type SnapOptions } from './snapping'
 import {
   FONT_FAMILY,
@@ -205,6 +206,14 @@ export interface EditorOptions {
   isActive?: () => boolean
 }
 
+/** Line ends pinned along a side stay this far (board px) from its corners. */
+const PIN_CORNER_MARGIN = 12
+
+/** An end on shape `id`: at a spot along `side`, its middle, or floating (no side). */
+function pinnedEnd(id: string, side: Side | null, at: number | null): Endpoint {
+  return side ? { objectId: id, side, ...(at !== null ? { at } : {}) } : { objectId: id }
+}
+
 /** Pointer travel (screen px) before a press becomes a drag. */
 const DRAG_THRESHOLD = 3
 const MIN_SHAPE_SIZE = GRID * 2
@@ -276,8 +285,10 @@ type Interaction =
       downScreen: Point
       dragging: boolean
       targetId: string | null
-      /** The target's side when the end is over one of its dots. */
+      /** The target's side when the end is over one of its dots or near its outline. */
       targetSide: Side | null
+      /** Where along that side, when not its middle. */
+      targetAt: number | null
       freePoint: Point
     }
   /** Dragging an end of the selected connector to another shape or into free space. */
@@ -289,6 +300,8 @@ type Interaction =
       dragging: boolean
       targetId: string | null
       side: Side | null
+      /** Where along that side, when not its middle. */
+      at: number | null
     }
   /** Dragging a crop frame's handle, or the frame itself ('move'). */
   | { kind: 'crop'; handle: ResizeHandle | 'move'; start: Rect; down: Point }
@@ -1249,7 +1262,7 @@ export class BoardEditor {
     if (it.kind === 'endpoint' && it.dragging) targetId = it.targetId
     if (it.kind === 'connect' && it.dragging) {
       targetId = it.targetId
-      previewConnector = this.tempConnector(it.from, targetId ? { objectId: targetId, ...(it.targetSide ? { side: it.targetSide } : {}) } : { point: it.freePoint })
+      previewConnector = this.tempConnector(it.from, targetId ? pinnedEnd(targetId, it.targetSide, it.targetAt) : { point: it.freePoint })
     }
     const source = this.connectableSelection()
     const inCell = !!source && this.activeCell?.id === source.id
@@ -1310,9 +1323,10 @@ export class BoardEditor {
     const dragged = (it.kind === 'endpoint' || it.kind === 'connect') && it.dragging ? it : null
     const endTarget = dragged?.targetId ? this.lookup(dragged.targetId) : undefined
     const endSide = dragged?.kind === 'endpoint' ? dragged.side : dragged?.kind === 'connect' ? dragged.targetSide : null
+    const endAt = dragged?.kind === 'endpoint' ? dragged.at : dragged?.kind === 'connect' ? dragged.targetAt : null
     const dots =
       isShape(endTarget)
-        ? { shape: endTarget, hover: endSide }
+        ? { shape: endTarget, hover: endSide, ...(endAt !== null ? { at: endAt } : {}) }
         : showDots && source
           ? { shape: source, hover: this.hoverDot }
           : actor && actorIdle
@@ -1455,7 +1469,12 @@ export class BoardEditor {
    * null. The shape at the other end only takes it on one of its other dots, which makes a line
    * from a shape back to itself; that needs the other end on a side too.
    */
-  private endTarget(p: Point, otherId: string | null, otherSide: Side | null): { id: string; side: Side | null } | null {
+  /**
+   * What a dragged line end at `p` joins: a side's middle near its dot, a spot along a side
+   * near the outline (inside the shape or just outside it; on the grid while snapping), the
+   * shape itself elsewhere inside it (the router picks the side), or nothing.
+   */
+  private endTarget(p: Point, otherId: string | null, otherSide: Side | null): { id: string; side: Side | null; at: number | null } | null {
     const r = (DOT_HOVER_RADIUS + 6) / this.viewport.zoom
     // The closest dot in reach; on a small shape the middle can be closer still, which leaves
     // the side to the router.
@@ -1468,14 +1487,36 @@ export class BoardEditor {
       }
       return best
     }
+    const onBorder = (o: ShapeObject): { side: Side; at: number | null } | null => {
+      const b = nearestBorder(o, p, SIDES, PIN_CORNER_MARGIN)
+      if (!b || b.distance > r) return null
+      const axis = b.side === 'top' || b.side === 'bottom' ? 'x' : 'y'
+      const at = Math.round(positionOn(o, b.side, { ...p, [axis]: this.gridSnap(p[axis]) }, PIN_CORNER_MARGIN) * 1e4) / 1e4
+      return { side: b.side, at: at === 0.5 ? null : at }
+    }
+    const pinned = (o: ShapeObject) => {
+      const side = near(o, null)
+      if (side) return { id: o.id, side, at: null }
+      const border = onBorder(o)
+      return border ? { id: o.id, ...border } : null
+    }
     const self = otherId ? this.lookup(otherId) : undefined
     if (isShape(self) && otherSide && !isContainer(self)) {
       const side = near(self, otherSide)
-      if (side) return { id: self.id, side }
+      if (side) return { id: self.id, side, at: null }
     }
     const id = this.hitShape(p, otherId ?? '')
     const target = id ? this.lookup(id) : undefined
-    return isShape(target) ? { id: target.id, side: near(target, null) } : null
+    if (isShape(target)) return pinned(target) || { id: target.id, side: null, at: null }
+    // Just outside a shape its outline is still in reach (topmost first).
+    const shapes = this.shapes()
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const o = shapes[i]
+      if (o.id === otherId || !canConnect(o) || !rectContainsPoint(expandRect(o, r), p)) continue
+      const hit = pinned(o)
+      if (hit) return hit
+    }
+    return null
   }
 
   /** The shape a line end let go at `p` joins (topmost first). */
@@ -1714,6 +1755,7 @@ export class BoardEditor {
         dragging: false,
         targetId: null,
         targetSide: null,
+        targetAt: null,
         freePoint: bp,
       }
       return
@@ -1753,7 +1795,7 @@ export class BoardEditor {
     if (handle && conn && !conn.locked) {
       this.interaction =
         'end' in handle
-          ? { kind: 'endpoint', original: conn, end: handle.end, downScreen: sp, dragging: false, targetId: null, side: null }
+          ? { kind: 'endpoint', original: conn, end: handle.end, downScreen: sp, dragging: false, targetId: null, side: null, at: null }
           : { kind: 'segment', original: conn, axis: handle.segment.axis, value: handle.segment.value, index: handle.segment.index, downBoard: bp }
       this.emitStatus()
       return
@@ -1797,6 +1839,7 @@ export class BoardEditor {
         dragging: false,
         targetId: null,
         targetSide: null,
+        targetAt: null,
         freePoint: bp,
       }
       return
@@ -1973,6 +2016,7 @@ export class BoardEditor {
         const target = this.endTarget(bp, it.sourceId, it.side)
         it.targetId = target?.id ?? null
         it.targetSide = target?.side ?? null
+        it.targetAt = target?.at ?? null
         if (!it.targetId) {
           // A free end snaps like a resize corner (object lines, else grid).
           const r = snapPoint(bp, this.snapTargets(new Set()), this.snapOptions(e))
@@ -2384,7 +2428,7 @@ export class BoardEditor {
     return { ...c, from: shift(c.from), to: shift(c.to) }
   }
 
-  /** Drag a connector end onto a shape (near a side dot it pins to that side, elsewhere it floats) or into free space. */
+  /** Drag a connector end onto a shape (near a side dot or the outline it pins there, elsewhere it floats) or into free space. */
   private updateEndpoint(it: Extract<Interaction, { kind: 'endpoint' }>, bp: Point, e: MouseEvent): void {
     const c = it.original
     const other = it.end === 'from' ? c.to : c.from
@@ -2392,12 +2436,14 @@ export class BoardEditor {
     let end: Endpoint
     if (target) {
       it.side = target.side
+      it.at = target.at
       it.targetId = target.id
-      end = it.side ? { objectId: target.id, side: it.side } : { objectId: target.id }
+      end = pinnedEnd(target.id, it.side, it.at)
       this.guides = []
     } else {
       const r = snapPoint(bp, this.snapTargets(new Set()), this.snapOptions(e))
       it.side = null
+      it.at = null
       it.targetId = null
       end = { point: r.point }
       this.guides = r.guides
@@ -2710,7 +2756,7 @@ export class BoardEditor {
 
   /** Dropped a dragged connector: attach to the target shape (floating end) or leave a free end. */
   private finishConnect(it: Extract<Interaction, { kind: 'connect' }>): void {
-    const to: Endpoint = it.targetId ? { objectId: it.targetId, ...(it.targetSide ? { side: it.targetSide } : {}) } : { point: it.freePoint }
+    const to: Endpoint = it.targetId ? pinnedEnd(it.targetId, it.targetSide, it.targetAt) : { point: it.freePoint }
     // Two free ends that barely moved aren't a connector.
     if ('point' in it.from && 'point' in to && distance(it.from.point, to.point) < GRID) return
     const connector = withDefaultStyle(createConnector(it.from, to, this.doc.maxZ() + 1))
