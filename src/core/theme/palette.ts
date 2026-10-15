@@ -25,6 +25,7 @@ function hue(h: number, c: number, yellow = false): { light: Tone; dark: Tone } 
   }
 }
 
+/** A neutral's tones; its tint is the canvas (toneOf fills it in). */
 const gray = (stroke: number, fill: number) => ({ stroke: ok(stroke, 0, 0), fill: ok(fill, 0, 0), tint: '' })
 
 /** Object colors in picker order: three neutrals, then nine hues around the wheel. */
@@ -123,13 +124,18 @@ export function setHostColors(colors: HostColors): void {
 }
 
 const NEUTRALS: ColorKey[] = ['gray', 'light', 'ink']
-const isNeutral = (c: ColorKey) => NEUTRALS.includes(c)
 
-/** A color's tones in the current theme; a custom #rrggbb is its own line and fill. */
+/**
+ * A color's tones in the current theme; a custom #rrggbb is its own line and fill. Anything
+ * else (keys of the palette before this one, still in older boards) is gray. Neutrals are
+ * tinted with the canvas itself.
+ */
 function toneOf(c: ColorKey): Tone {
-  const p = BY_KEY.get(c) ?? (c.startsWith('#') ? null : BY_KEY.get('gray')!)
-  if (p) return mode === 'dark' ? p.dark : p.light
-  return { stroke: c, fill: c, tint: mixColors(c, theme.shapeFill, 0.12) }
+  if (!isColorKey(c)) return toneOf('gray')
+  const p = BY_KEY.get(c)
+  if (!p) return { stroke: c, fill: c, tint: mixColors(c, theme.shapeFill, 0.12) }
+  const tone = mode === 'dark' ? p.dark : p.light
+  return NEUTRALS.includes(c) ? { ...tone, tint: theme.shapeFill } : tone
 }
 
 /** The color itself in the current theme (swatches, pen strokes). */
@@ -145,8 +151,7 @@ export function strokeColor(color: ColorKey): string {
 /** Inside of a shape: the solid fill, or (outlined) the canvas, tinted by a colored outline. */
 export function fillColor(color: ColorKey, deco: Deco): string {
   if (deco === 'transparent') return 'transparent'
-  if (deco === 'fill') return toneOf(color).fill
-  return isNeutral(color) ? theme.shapeFill : toneOf(color).tint
+  return deco === 'fill' ? toneOf(color).fill : toneOf(color).tint
 }
 
 /** Text on a shape: dark or white on a filled shape (whichever reads), else the theme's text. */
