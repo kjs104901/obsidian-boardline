@@ -1,5 +1,5 @@
 // The README's screenshot: the board UI (src/board-ui) on a demo board, outside Obsidian, in
-// Obsidian's default light theme. capture.mjs serves this page and saves it as a picture once
+// Obsidian's default light theme (dark with ?dark). capture.mjs serves this page and saves it as a picture once
 // `window.boardReady` is set.
 
 import { createRoot } from 'react-dom/client'
@@ -7,15 +7,15 @@ import { BoardScreen, type BoardController, type BoardHost } from '@boardline/bo
 import { createShape, isShape, type BoardObject, type ColorKey, type Deco } from '@boardline/core/board/model'
 import { emptyBoardFile, formatBoardFile, parseBoard } from '@boardline/core/board/serialize'
 import type { BoardEditor } from '@boardline/core/engine/editor'
-import { setFontFamily } from '@boardline/core/engine/text'
 import type { WorkspaceStorage } from '@boardline/core/platform/storage'
-import { setHostColors, setThemeMode } from '@boardline/core/theme/palette'
+import { followHostLook, type HostLook } from '@boardline/core/theme/follow'
 import '../../src/plugin.css'
 
 declare global {
   interface Window {
     boardReady?: boolean
     boardEditor?: BoardEditor
+    boardLook?: HostLook
   }
 }
 
@@ -86,9 +86,9 @@ const host: BoardHost = {
   promptText: async () => null,
 }
 
-setThemeMode('light')
-setHostColors({ background: '#ffffff', dots: '#e0e0e0', accent: '#8b6cef' })
-setFontFamily(getComputedStyle(document.body).getPropertyValue('--font-interface').trim())
+// As the plugin does: light or dark by the body's class (add ?dark for a dark picture).
+if (new URLSearchParams(location.search).has('dark')) document.body.className = 'theme-dark'
+window.boardLook = followHostLook(document)
 
 const doc = parseBoard(formatBoardFile(emptyBoardFile('Boardline')))
 const controller: { current: BoardController | null } = { current: null }

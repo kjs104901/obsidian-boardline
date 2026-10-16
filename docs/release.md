@@ -83,6 +83,8 @@
 | 설정 화면 글 규칙 | ✅ sentence case, 제목은 `setHeading()`, 제목에 "settings" 없음 |
 | 단축키를 가로채지 않기 | ⚠️ 보드에 포커스가 있을 때만 보드 보기의 Scope로 Ctrl+B/I/E/F/H/G/D/L/0/=/-/Enter, Alt+Enter를 보드가 받는다. 노트용 기능을 막는 게 아니라 보드 안에서 같은 뜻으로 쓰는 것이므로, README에 적었다 |
 | 네트워크 사용 알리기([개발자 정책](https://docs.obsidian.md/Developer+policies)) | ✅ README의 "Network use". 링크 미리보기가 `requestUrl`로 웹 페이지와 그림을 읽는다. 그 밖의 네트워크·계정·광고·원격 측정은 없다 |
+| 번들(`main.js`)에 원격 코드 불러오기로 보일 것 없음 | ✅ React 19의 react-dom은 쓰지 않는 리소스 미리 불러오기 기능에 `createElement("script")`가 있어 18.3으로 내렸다(보드 UI는 두 버전에 다 있는 것만 쓴다). `eval`·`new Function`·`fetch`·`XMLHttpRequest`도 없다. 남은 `innerHTML`은 react-dom의 `dangerouslySetInnerHTML` 처리, `new Worker`는 elkjs의 워커 주소 경로로, 둘 다 Boardline이 쓰지 않는다 |
+| 라이트·다크 전환 | ✅ `core/theme/follow.ts`: Obsidian의 `css-change`가 body 클래스보다 먼저 올 수 있어 다음 프레임에 읽고, 클래스만 바꾸는 테마·플러그인(Minimal 설정 등)도 따라간다. 노트 속 보드 그림은 보드 색이 바뀐 뒤 다시 그린다 |
 
 **남긴 lint 경고(29개)와 이유**
 

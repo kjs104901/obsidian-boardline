@@ -7,6 +7,7 @@
 
 import { Component, MarkdownRenderChild, TFile, type MarkdownPostProcessorContext } from 'obsidian'
 import { renderBoardPng } from '@boardline/core/board/boardFiles'
+import { THEME_EVENT } from '@boardline/core/theme/events'
 import { themeMode } from '@boardline/core/theme/palette'
 import type BoardlinePlugin from './main'
 import { t } from '@boardline/core/i18n'
@@ -77,8 +78,9 @@ class BoardEmbed extends Component {
     const draw = () => renderBoardEmbed(this.plugin, this.containerEl, this.file)
     draw()
     this.registerEvent(this.plugin.app.vault.on('modify', (f) => f === this.file && draw()))
-    // Light/dark changed: the picture is drawn again in the new colors.
-    this.registerEvent(this.plugin.app.workspace.on('css-change', draw))
+    // Light/dark changed (once the boards' colors follow it): the picture is drawn again in the new colors.
+    window.addEventListener(THEME_EVENT, draw)
+    this.register(() => window.removeEventListener(THEME_EVENT, draw))
   }
 }
 

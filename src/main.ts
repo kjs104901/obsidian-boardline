@@ -6,9 +6,7 @@ import { parseLink } from '@boardline/core/board/links'
 import { boardFileName, emptyBoardFile, formatBoardFile, parseBoard, serialize, titleFromFileName } from '@boardline/core/board/serialize'
 import { updateOp } from '@boardline/core/board/document'
 import { mayLinkTo, relinkObjects } from '@boardline/core/board/relink'
-import { DEFAULT_FONT_FAMILY, setFontFamily } from '@boardline/core/engine/text'
-import { FONT_EVENT, THEME_EVENT } from '@boardline/core/theme/events'
-import { setHostColors, setThemeMode } from '@boardline/core/theme/palette'
+import { followHostLook } from '@boardline/core/theme/follow'
 import { BoardFileView, VIEW_TYPE_BOARD } from './BoardFileView'
 import { boardIdOf } from './dialogs'
 import { clearEmbedCache, registerBoardEmbeds } from './embeds'
@@ -100,25 +98,10 @@ export default class BoardlinePlugin extends Plugin {
 
   /** Boards take Obsidian's light/dark mode, note background and interface font. */
   private followObsidianLook(): void {
-    const apply = () => {
-      const body = activeDocument.body
-      setThemeMode(body.classList.contains('theme-dark') ? 'dark' : 'light')
-      const style = getComputedStyle(body)
-      // The note background, the canvas dots and the accent, as plain colors (the variables
-      // themselves may be calc() or color-mix() expressions a canvas can't read).
-      const probe = body.createDiv()
-      const resolve = (name: string) => {
-        probe.style.color = `var(${name})`
-        return getComputedStyle(probe).color || null
-      }
-      setHostColors({ background: resolve('--background-primary'), dots: resolve('--canvas-dot-pattern'), accent: resolve('--interactive-accent') })
-      probe.remove()
-      setFontFamily(style.getPropertyValue('--font-interface').trim() || DEFAULT_FONT_FAMILY)
-      window.dispatchEvent(new Event(THEME_EVENT))
-      window.dispatchEvent(new Event(FONT_EVENT))
-    }
-    this.app.workspace.onLayoutReady(apply)
-    this.registerEvent(this.app.workspace.on('css-change', apply))
+    const look = followHostLook(activeDocument)
+    this.register(() => look.stop())
+    this.app.workspace.onLayoutReady(() => look.refresh())
+    this.registerEvent(this.app.workspace.on('css-change', () => look.refresh()))
   }
 
   /** The folder new boards go to (see settings), or `folder` when given. */
