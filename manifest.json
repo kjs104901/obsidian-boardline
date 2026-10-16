@@ -1,7 +1,7 @@
 {
   "id": "boardline",
   "name": "Boardline",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.8.7",
   "description": "Draw flowcharts, mind maps, sequence diagrams, tables and sticky notes on whiteboards in your vault, with your notes and pictures on the board.",
   "author": "kjs104901",
