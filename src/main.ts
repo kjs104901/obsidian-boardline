@@ -43,8 +43,10 @@ export default class BoardlinePlugin extends Plugin {
       this.app.workspace.on('file-menu', (menu, file) => {
         const folder = file instanceof TFolder ? file : file.parent
         if (!folder) return
+        // With Obsidian's own New note, New folder and New canvas at the top of the menu.
         menu.addItem((i) =>
           i
+            .setSection('action-primary')
             .setTitle(t('board.newName'))
             .setIcon('layout-dashboard')
             .onClick(() => void this.createBoard(folder)),
