@@ -1,6 +1,6 @@
 # Obsidian 플러그인 출시 준비
 
-2026-10-16 기준(커밋 `d858517` 이후. 이 문서의 커밋 해시는 데스크탑 앱과 함께 있던 이전 저장소의 것이다). 기능은 출시할 만큼 갖춰졌고, 남은 큰 일은 **영어 UI**, **공개 저장소·README·릴리스 자동화**, **실제 휴대폰·태블릿 확인** 세 가지다. 크기 줄이기는 선택이다.
+2026-10-16 기준(이 문서의 커밋 해시는 데스크탑 앱과 함께 있던 이전 저장소의 것이다). 기능, 영어 UI, Obsidian 리뷰 규칙, 릴리스 자동화, 영어 README는 갖췄다. 남은 일은 **라이선스 정하기**, **GitHub 공개와 첫 릴리스**, **실제 휴대폰·태블릿 확인**, **커뮤니티 디렉터리 제출**이다(6·7장). 크기 줄이기는 선택이다.
 
 ---
 
@@ -22,7 +22,9 @@
 
 ## 2. 다국어(l10n)
 
-지금 UI는 전부 한국어다. Obsidian 커뮤니티는 대부분 영어를 쓰므로 **영어를 기본으로 하고 한국어를 함께 두는 것**이 사실상 필요하다.
+✅ 했다. 영어가 기준이고 한국어·일본어·중국어(간체)·스페인어·독일어·프랑스어를 둔다(문구 약 470개). 언어는 `getLanguage()`로 알아내고, 그래서 `minAppVersion`은 1.8.7이다(보관함별 로컬 저장소 `App.loadLocalStorage`·`saveLocalStorage`도 1.8.7부터). 아래는 정할 때의 조사다.
+
+예전에는 UI가 전부 한국어였다. Obsidian 커뮤니티는 대부분 영어를 쓰므로 **영어를 기본으로 하고 한국어를 함께 두는 것**이 사실상 필요하다.
 
 ### 다른 플러그인은 어떻게 하나
 
@@ -60,8 +62,10 @@
 | 정규식 lookbehind 없애기 | ✅ `c67d5e8` | iOS 16.4 미만은 lookbehind가 든 플러그인을 아예 불러오지 못한다(Obsidian 가이드라인). 남은 `(?<` 두 개는 elkjs 안의 문자열이라 괜찮다 |
 | 옮기거나 이름 바꾼 파일의 링크 따라가기 | ✅ `c67d5e8` | 노트 카드·링크·그림·글 속 `[[링크]]`. 열린 보드는 편집기로 한 번의 실행 취소 단위로, 닫힌 보드는 파일에서 고친다. Obsidian의 "내부 링크 자동 업데이트" 설정이 꺼져 있어도 보드 링크는 늘 고친다(설정을 따르게 하려면 결정 필요) |
 | 큰 보드 성능 | ✅ `d858517` | 아래 표 |
-| `manifest.json` | 일부 | 설명은 고침. **`author`(지금 "Boardline")와 `authorUrl`을 본인 이름·주소로**, `version`은 첫 공개에서 `1.0.0`, l10n 때 `minAppVersion` `1.8.7` |
-| 영어 UI | ⬜ | 2장 |
+| `manifest.json` | ✅ | `version` 1.0.0, `minAppVersion` 1.8.7, `author` kjs104901, `authorUrl` GitHub 프로필. 설명은 동사로 시작하고 250자 안, "Obsidian"을 넣지 않았다 |
+| Obsidian 리뷰 규칙(`npm run lint`) | ✅ | 커뮤니티 디렉터리의 자동 검사가 쓰는 [eslint-plugin-obsidianmd](https://github.com/obsidianmd/eslint-plugin)의 recommended 설정. 오류 0개. 남긴 경고는 아래 |
+| 빌드 재현성 | ✅ | 같은 소스에서 두 번 빌드하면 `main.js`·`styles.css`가 바이트까지 같다(아이콘 파일을 정렬해 읽음). 디렉터리는 `npm run build`로 직접 빌드해 본다 |
+| 영어 UI | ✅ | 2장. 영어 기준, 6개 언어 |
 | 휴대폰·태블릿 실제 확인 | ⬜ | `isDesktopOnly: false`인데 실기기에서 써 본 적 없다. iOS·Android 각각 보드 열기, 두 손가락 확대·이동, 도구 막대(좁은 화면에서 아래로), 글 입력(가상 키보드), 노트 카드 열기, 파일 넣기 |
 
 ### Obsidian [플러그인 가이드라인](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines) 점검
@@ -72,11 +76,21 @@
 | 콘솔에 불필요한 로그 남기지 않기 | ✅ `console.log` 없음(오류만 `console.error`) |
 | 명령에 기본 단축키 두지 않기 | ✅ 명령 1개, 단축키 없음 |
 | 전역 `app` 대신 `this.app` | ✅ (`BoardFileView`는 `const app = this.app`) |
-| Vault API를 쓰고 Adapter API는 피하기 | ⚠️ 숨김 폴더 `.boardline/`(버전 기록·붙여 넣은 그림)는 Vault API가 다루지 못해 Adapter API로 읽고 쓴다. 리뷰에서 물을 수 있어 README에 이유를 적는다. 대안: 버전 기록을 플러그인 데이터 폴더(`.obsidian/plugins/boardline/`)로 옮기기 |
-| 하드코딩 스타일 피하기 | ⚠️ 위치·크기(동적)는 인라인 스타일이라 괜찮다. `board.css`에 고정 색이 남아 있는지 한 번 훑어 Obsidian CSS 변수로 바꾼다 |
-| 설정 화면 글 규칙 | ⬜ 영어로 옮길 때 지킨다: 제목에 "settings" 넣지 않기, 절이 하나면 제목 없이, sentence case, 제목은 `setHeading()` |
-| 단축키를 가로채지 않기 | ⚠️ 보드에 포커스가 있을 때만 보드 보기의 Scope로 Ctrl+B/I/E/F/H/G/D/L/0/Enter, Alt+Enter를 보드가 받는다. 노트용 기능을 막는 게 아니라 보드 안에서 같은 뜻으로 쓰는 것이므로, README에 적어 둔다 |
-| 네트워크 사용 알리기([개발자 정책](https://docs.obsidian.md/Developer+policies)) | ⬜ 링크 미리보기가 `requestUrl`로 웹 페이지와 그림을 읽는다(제목·설명·대표 그림·아이콘). README에 반드시 적는다. 그 밖의 네트워크·계정·광고·원격 측정은 없다 |
+| Vault API를 쓰고 Adapter API는 피하기 | ⚠️ 보관함 파일은 Vault API(`create`, 있는 파일은 `process`로 원자적으로 바꿈). 숨김 폴더 `.boardline/history/`(버전 기록)만 Vault API가 다루지 못해 Adapter API로 읽고 쓴다. README에 이유를 적었다. 대안: 버전 기록을 플러그인 데이터 폴더(`.obsidian/plugins/boardline/`)로 옮기기 |
+| `localStorage` 대신 `App.loadLocalStorage`·`saveLocalStorage` | ✅ 최근 색·아이콘, 마지막 도구, 기본 스타일, 보드별 화면 위치·읽기 전용. `core/platform/prefs.ts`가 저장소를 받고, 플러그인이 켜질 때 Obsidian의 보관함별 저장소를 넣는다 |
+| 타이머는 `window.setTimeout` 등 | ✅ 팝아웃 창 호환 |
+| 하드코딩 스타일 피하기 | ✅ 고정 값은 CSS 클래스로(선택 막대 위치 바꿈 `over-node`), 커서는 포인터 아래 것에 따라 그때그때 정하므로 `setCursor()` 한곳에서. 위치·크기(동적)는 인라인 스타일 |
+| 설정 화면 글 규칙 | ✅ sentence case, 제목은 `setHeading()`, 제목에 "settings" 없음 |
+| 단축키를 가로채지 않기 | ⚠️ 보드에 포커스가 있을 때만 보드 보기의 Scope로 Ctrl+B/I/E/F/H/G/D/L/0/=/-/Enter, Alt+Enter를 보드가 받는다. 노트용 기능을 막는 게 아니라 보드 안에서 같은 뜻으로 쓰는 것이므로, README에 적었다 |
+| 네트워크 사용 알리기([개발자 정책](https://docs.obsidian.md/Developer+policies)) | ✅ README의 "Network use". 링크 미리보기가 `requestUrl`로 웹 페이지와 그림을 읽는다. 그 밖의 네트워크·계정·광고·원격 측정은 없다 |
+
+**남긴 lint 경고(29개)와 이유**
+
+| 규칙 | 개수 | 이유 |
+|---|---|---|
+| `obsidianmd/prefer-create-el` | 17 | 모두 `src/core`(보드 엔진). 엔진은 Obsidian을 모르게 두어 Vitest로 시험하므로 `document.createElement`를 쓴다. 셸(`src/*.ts`)에는 없다 |
+| `@typescript-eslint/no-deprecated` | 11 | 10개는 `document.execCommand`(편집 상자의 굵게·실행 취소, 복사). 브라우저가 대신할 API를 아직 주지 않는다. 1개는 `PluginSettingTab.display()` 다시 부르기로, 대신할 `getSettingDefinitions()`는 1.13.0부터라 `minAppVersion` 1.8.7에서는 쓸 수 없다 |
+| `obsidianmd/settings-tab/prefer-setting-definitions` | 1 | 같은 이유(1.13.0부터) |
 
 ---
 
@@ -109,7 +123,7 @@
 
 ## 5. 번들 크기
 
-`main.js` 3.97 MB(배포 빌드, 압축 없음), `styles.css` 22 KB. 아래 표는 데스크탑 전용 코드를 빼기 전(3.98 MB)에 잰 것이다.
+`main.js` 4.12 MB(배포 빌드, 압축 없음, 도형 6개와 6개 언어를 더한 뒤), `styles.css` 22 KB. 아래 표는 데스크탑 전용 코드를 빼기 전(3.98 MB)에 잰 것이다.
 
 | 구성 | 크기 | 내용 |
 |---|---|---|
@@ -151,46 +165,51 @@ Obsidian은 `main.js`·`manifest.json`·`styles.css` 세 파일만 받으므로 
 
 ---
 
-## 6. 코드 밖에서 준비할 것
+## 6. 코드 밖에서 할 일
 
-1. **공개 저장소**
-   - ✅ 플러그인만 담은 저장소로 정리했다(이 폴더). 데스크탑 앱(Tauri)·MCP·문서 편집기를 빼고, Obsidian 플러그인의 보통 구조대로 `manifest.json`·`versions.json`을 맨 위에 두었다(obsidian-releases와 BRAT은 저장소 맨 위의 `manifest.json`을 읽는다).
-   - 남은 일: git 저장소를 만들어 GitHub에 공개하기. `.dev-runs/`, `testws/` 같은 개발용 폴더는 `.gitignore`에 들어 있다.
-2. **라이선스**
-   - MIT를 권한다(Obsidian 플러그인 대부분). **결정 필요**.
-   - 함께 묶이는 elkjs는 EPL-2.0이다. 고지문은 이미 `main.js` 머리와 설정 화면에 들어간다(`THIRD_PARTY_NOTICES`). Phosphor·React는 MIT다.
-3. **README(영어)**
-   - 한 줄 소개와 스크린샷·GIF: 플로차트, 마인드맵, 표, 노트 카드, 발표.
-   - 기능 목록과 주요 단축키.
-   - 파일 형식: `.board`는 JSON, 한 줄에 객체 하나라 diff가 깔끔하다. `![[x.board]]`로 노트에 넣을 수 있다.
-   - **네트워크 사용 공개**(링크 미리보기).
-   - 데이터 위치: `.boardline/`의 버전 기록과 붙여 넣은 그림.
-   - 모바일 지원.
-   - 알려진 제한: 캔버스로 내보낼 때 펜 그림이 빠지는 것 등.
-4. **릴리스 자동화(GitHub Actions)**
-   - 태그를 push하면 `npm ci` → 테스트 → `npm run build` → GitHub Release에 `dist/`의 `main.js`, `manifest.json`, `styles.css`를 붙인다.
-   - 태그 이름은 `manifest.json`의 `version`과 같게 하고 앞에 `v`를 붙이지 않는다. 릴리스마다 `versions.json`을 갱신한다.
-5. **베타**
-   - [BRAT](https://github.com/TfTHacker/obsidian42-brat)으로 몇 명이 저장소에서 바로 설치해 써 보게 한다. 모바일 확인도 이때 받는다.
-6. **제출**
-   - [obsidian-releases](https://github.com/obsidianmd/obsidian-releases)에 PR을 연다(`community-plugins.json`에 id, name, author, description, repo 추가). 자동 검사와 사람 리뷰를 거치며, 보통 몇 주 걸린다.
-7. **(선택)** `fundingUrl`(후원 링크).
+1. **라이선스** — ✅ MIT(`LICENSE`, README의 License 절, `package.json`). 커뮤니티 디렉터리는 라이선스 종류를 GitHub에서 읽으며, 없거나 "Custom"이면 경고가 나온다.
+   - 함께 묶이는 elkjs는 EPL-2.0, Phosphor·React는 MIT다. 고지문은 `main.js` 머리와 설정 화면에 이미 들어간다(`THIRD_PARTY_NOTICES`).
+2. **GitHub 공개** (`kjs104901/obsidian-boardline`)
+   - `git remote add origin https://github.com/kjs104901/obsidian-boardline.git` → `git push -u origin main`.
+   - 저장소 About에 설명과 주제(`obsidian-plugin`, `whiteboard`, `flowchart`, `mind-map`)를 넣는다.
+   - CI(`.github/workflows/ci.yml`)가 푸시마다 타입·lint·테스트·빌드를 돈다.
+3. **README 스크린샷·GIF** — ✅ 스크린샷 `docs/images/board.png`(`npm run screenshot`로 다시 찍음). GIF는 선택
+   - 데모 보드는 `scripts/screenshot/main.tsx`에서 고친다. GIF를 더한다면 마인드맵 만들기, 연결선 끌기, 발표 화면이 좋다(커뮤니티 디렉터리와 Obsidian 플러그인 화면은 README를 그대로 보여 준다).
+4. **첫 릴리스 1.0.0**
+   - 버전은 이미 1.0.0이므로 `git tag 1.0.0` → `git push origin 1.0.0`. 다음부터는 `npm version patch` → `git push --follow-tags`.
+   - `.github/workflows/release.yml`이 태그와 `manifest.json` 버전이 같은지 보고, 검사·테스트·빌드 뒤 `main.js`, `manifest.json`, `styles.css`를 붙인 **초안 릴리스**를 만든다(파일마다 빌드 출처 증명 포함). GitHub에서 릴리스 노트를 다듬고 공개한다.
+   - 태그 이름은 `manifest.json`의 `version`과 같고 앞에 `v`가 없다(`.npmrc`의 `tag-version-prefix=""`). `minAppVersion`을 올릴 때는 `versions.json`에 남는다(`scripts/version-bump.mjs`).
+5. **휴대폰·태블릿 확인** — `isDesktopOnly: false`이므로 iOS·Android 각각: 보드 열기, 두 손가락 확대·이동, 도구 막대(좁은 화면에서 아래로), 글 입력(가상 키보드), 노트 카드 열기, 파일 넣기.
+6. **베타(선택)** — [BRAT](https://github.com/TfTHacker/obsidian42-brat)으로 몇 명이 저장소에서 바로 설치해 써 보게 한다(BRAT은 최신 릴리스의 파일을 받는다). 모바일 확인도 이때 받는다.
+7. **커뮤니티 디렉터리 제출** — 이제 obsidian-releases에 PR을 여는 대신 [community.obsidian.md](https://community.obsidian.md)에서 한다.
+   1. Obsidian 계정으로 로그인하고 프로필(사용자 이름, 소개, 후원 링크)을 채운다.
+   2. **GitHub** 항목에서 GitHub 계정을 연결한다(저장소 주인인지 확인하는 데 쓰며, 연결해야 제출할 수 있다).
+   3. 제출 전에 플러그인 관리 화면의 **Review branch**로 `main`이나 태그를 미리 검사해 본다.
+   4. **Plugins** > **New plugin**에 저장소 주소를 넣고, 주인(본인)을 고르고, 개발자 정책에 동의하고, 계속 관리하겠다고 확인한 뒤 제출한다.
+   - 자동 검사는 **Manifest**, **Releases**, **Source code**, **Build verification** 네 묶음이고 결과는 Error·Warning·Recommendation·Pass로 나온다. 빌드는 `build` 스크립트(`npm run build`)를 쓰며, `scripts`, `docs`, 테스트 파일, `*.mjs` 설정, `node_modules`, `dist`는 검사에서 뺀다.
+   - 한 번 올린 뒤에는 새 릴리스만 내면 사용자에게 업데이트가 간다(디렉터리가 주기적으로 확인하고, 관리 화면의 **Check for new releases**로 바로 확인시킬 수 있다).
+   - 플러그인 id(`boardline`)는 올린 뒤 바꿀 수 없다.
+8. **(선택)** 후원 링크: 디렉터리 프로필의 funding 링크, 또는 `manifest.json`의 `fundingUrl`.
 
 ---
 
 ## 7. 체크리스트
 
-- [ ] 이름 확정(Boardline 권장)
-- [ ] `manifest.json`: author·authorUrl, version 1.0.0, minAppVersion
-- [ ] 영어 UI + 한국어(`getLanguage()`, `t(key)`, 약 750개 문자열)
-- [ ] 설정 화면 글을 가이드라인에 맞게
-- [ ] `board.css` 고정 색 확인
-- [ ] `.boardline/` Adapter 사용 이유를 README에 (또는 플러그인 데이터 폴더로 옮기기)
+- [x] 이름 확정(Boardline)
+- [x] `manifest.json`: author·authorUrl, version 1.0.0, minAppVersion 1.8.7
+- [x] 영어 UI + 한국어 외 5개 언어(`getLanguage()`, `t(key)`)
+- [x] 설정 화면 글을 가이드라인에 맞게
+- [x] Obsidian 리뷰 규칙(`npm run lint`) 오류 0
+- [x] `.boardline/` Adapter 사용 이유를 README에
+- [x] 영어 README(네트워크 사용 공개, 데이터 위치), 한국어는 README.ko.md
+- [x] GitHub Actions: CI, 태그로 초안 릴리스, versions.json 자동 갱신
+- [x] 빌드 재현성(같은 소스 → 같은 main.js)
+- [x] 라이선스: MIT
+- [ ] GitHub 공개
+- [x] README 스크린샷(`npm run screenshot`), GIF는 선택
+- [ ] 첫 릴리스 1.0.0 (태그 → 초안 → 공개)
 - [ ] iOS·Android 실기기 확인
+- [ ] 번역 검토(일본어·중국어·스페인어·독일어·프랑스어는 원어민 확인 전)
+- [ ] (선택) BRAT 베타
 - [ ] (선택) 아이콘·ELK 압축으로 크기 줄이기
-- [x] 플러그인만 담은 저장소 구성
-- [ ] GitHub 공개, 라이선스
-- [ ] 영어 README(스크린샷, 네트워크 사용 공개, 데이터 위치)
-- [ ] GitHub Actions 릴리스, versions.json
-- [ ] BRAT 베타
-- [ ] obsidian-releases PR
+- [ ] community.obsidian.md 제출(Review branch로 먼저 검사)

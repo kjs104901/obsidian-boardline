@@ -1,0 +1,45 @@
+name: Release
+
+# Pushing a tag named exactly like manifest.json's version (1.0.1, no "v"; `npm version` makes
+# one) builds the plugin and opens a draft release with main.js, manifest.json and styles.css,
+# each with a build provenance attestation. Publish the draft on GitHub when its notes are ready.
+on:
+  push:
+    tags: ['*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check the tag is manifest.json's version
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          if [ "$GITHUB_REF_NAME" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not manifest.json's version ($version)"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes main.js manifest.json styles.css
