@@ -181,11 +181,16 @@ export class RichField {
     el.setAttribute('role', 'textbox')
     el.setAttribute('aria-multiline', 'true')
     this.el = el
-    // Pasted text comes in as text: its own formatting would not survive anyway.
+    // Pasted text is Markdown like everything written here (text copied from a note keeps its
+    // bold, highlights and code, as it does pasted onto the board); other formatting (HTML) is
+    // not kept. The nodes are built from the text, so the markup handed over is our own.
     el.addEventListener('paste', (e) => {
       e.preventDefault()
-      const text = e.clipboardData?.getData('text/plain') ?? ''
-      if (text) doc.execCommand('insertText', false, text.replace(/\r\n?/g, '\n'))
+      const text = (e.clipboardData?.getData('text/plain') ?? '').replace(/\r\n?/g, '\n')
+      if (!text) return
+      const box = doc.createElement('div')
+      box.append(...markdownToNodes(doc, text))
+      doc.execCommand('insertHTML', false, box.innerHTML)
     })
     el.addEventListener('drop', (e) => e.preventDefault())
     el.addEventListener('compositionstart', () => (this.composing = true))

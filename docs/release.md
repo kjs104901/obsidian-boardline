@@ -86,12 +86,12 @@
 | 번들(`main.js`)에 원격 코드 불러오기로 보일 것 없음 | ✅ React 19의 react-dom은 쓰지 않는 리소스 미리 불러오기 기능에 `createElement("script")`가 있어 18.3으로 내렸다(보드 UI는 두 버전에 다 있는 것만 쓴다). `eval`·`new Function`·`fetch`·`XMLHttpRequest`도 없다. 남은 `innerHTML`은 react-dom의 `dangerouslySetInnerHTML` 처리, `new Worker`는 elkjs의 워커 주소 경로로, 둘 다 Boardline이 쓰지 않는다 |
 | 라이트·다크 전환 | ✅ `core/theme/follow.ts`: Obsidian의 `css-change`가 body 클래스보다 먼저 올 수 있어 다음 프레임에 읽고, 클래스만 바꾸는 테마·플러그인(Minimal 설정 등)도 따라간다. 노트 속 보드 그림은 보드 색이 바뀐 뒤 다시 그린다 |
 
-**남긴 lint 경고(29개)와 이유**
+**남긴 lint 경고(31개)와 이유**
 
 | 규칙 | 개수 | 이유 |
 |---|---|---|
-| `obsidianmd/prefer-create-el` | 17 | 모두 `src/core`(보드 엔진). 엔진은 Obsidian을 모르게 두어 Vitest로 시험하므로 `document.createElement`를 쓴다. 셸(`src/*.ts`)에는 없다 |
-| `@typescript-eslint/no-deprecated` | 11 | 10개는 `document.execCommand`(편집 상자의 굵게·실행 취소, 복사). 브라우저가 대신할 API를 아직 주지 않는다. 1개는 `PluginSettingTab.display()` 다시 부르기로, 대신할 `getSettingDefinitions()`는 1.13.0부터라 `minAppVersion` 1.8.7에서는 쓸 수 없다 |
+| `obsidianmd/prefer-create-el` | 19 | 모두 `src/core`(보드 엔진). 엔진은 Obsidian을 모르게 두어 Vitest로 시험하므로 `document.createElement`를 쓴다. 셸(`src/*.ts`)에는 없다 |
+| `@typescript-eslint/no-deprecated` | 11 | 10개는 `document.execCommand`(편집 상자의 굵게·실행 취소·붙여넣기, 복사). 브라우저가 대신할 API를 아직 주지 않는다. 1개는 `PluginSettingTab.display()` 다시 부르기로, 대신할 `getSettingDefinitions()`는 1.13.0부터라 `minAppVersion` 1.8.7에서는 쓸 수 없다 |
 | `obsidianmd/settings-tab/prefer-setting-definitions` | 1 | 같은 이유(1.13.0부터) |
 
 ---
