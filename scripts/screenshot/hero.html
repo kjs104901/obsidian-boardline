@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Boardline</title>
+    <!-- The community directory's first picture (1200x800): the name and what it does, beside the
+         live board (index.html, dark, in the frame). Ready once the board inside is drawn. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 800px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background:
+          radial-gradient(900px 520px at 78% 30%, rgba(139, 108, 239, 0.28), transparent 70%),
+          radial-gradient(600px 420px at 8% 100%, rgba(45, 170, 160, 0.16), transparent 70%),
+          #121318;
+        color: #f2f2f5;
+        font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+      }
+      body::before {
+        /* The board's dot grid. */
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1.2px, transparent 1.4px);
+        background-size: 24px 24px;
+      }
+      .text {
+        position: absolute;
+        left: 72px;
+        top: 178px;
+        width: 480px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 40px;
+      }
+      .logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: linear-gradient(140deg, #9b7cf4, #6b4fd8);
+        box-shadow: 0 10px 30px rgba(107, 79, 216, 0.45);
+        display: grid;
+        place-items: center;
+      }
+      .name {
+        font-size: 44px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+      h1 {
+        margin: 0 0 22px;
+        font-size: 50px;
+        line-height: 1.08;
+        font-weight: 700;
+        letter-spacing: -1px;
+      }
+      h1 em {
+        font-style: normal;
+        color: #b9a6ff;
+      }
+      p {
+        margin: 0 0 34px;
+        font-size: 21px;
+        line-height: 1.45;
+        color: #c3c4cc;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chips span {
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 14px;
+        color: #dcdce4;
+      }
+      .window {
+        position: absolute;
+        left: 600px;
+        top: 130px;
+        width: 760px;
+        height: 540px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #1e1e1e;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+      }
+      .window iframe {
+        /* The board at a desktop size, shown at 0.6. */
+        width: 1266px;
+        height: 900px;
+        border: 0;
+        transform: scale(0.6);
+        transform-origin: 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="text">
+      <div class="brand">
+        <div class="logo">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="9" rx="1" />
+            <rect x="14" y="3" width="7" height="5" rx="1" />
+            <rect x="14" y="12" width="7" height="9" rx="1" />
+            <rect x="3" y="16" width="7" height="5" rx="1" />
+          </svg>
+        </div>
+        <div class="name">Boardline</div>
+      </div>
+      <h1>Whiteboards in your <em>Obsidian</em> vault</h1>
+      <p>Flowcharts, mind maps, sequence diagrams, tables and sticky notes, with your notes right on the board.</p>
+      <div class="chips">
+        <span>Mermaid import</span>
+        <span>Auto layout</span>
+        <span>Presenting</span>
+        <span>.board files</span>
+      </div>
+    </div>
+    <div class="window"><iframe src="index.html?dark&noselect"></iframe></div>
+    <script>
+      // Ready when the board in the frame is drawn.
+      const frame = document.querySelector('iframe')
+      const wait = () => (frame.contentWindow?.boardReady ? (window.boardReady = true) : setTimeout(wait, 100))
+      wait()
+    </script>
+  </body>
+</html>

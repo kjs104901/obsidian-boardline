@@ -90,6 +90,7 @@ npm run dev -- --vault /path/to/test/vault
 | `npm run lint` | Obsidian's review rules ([eslint-plugin-obsidianmd](https://github.com/obsidianmd/eslint-plugin)) |
 | `npm test` | Unit tests (Vitest) |
 | `npm run screenshot` | Redraws `docs/images/board.png` from a demo board (needs Edge or Chrome) |
+| `npm run listing` | Redraws the community directory's pictures in `docs/listing/` |
 | `npm version patch` | Bumps `package.json`, `manifest.json` and `versions.json`, commits and tags |
 
 Pushing a tag (`git push --follow-tags`) runs the release workflow, which checks, builds and drafts a GitHub release with `main.js`, `manifest.json` and `styles.css`.

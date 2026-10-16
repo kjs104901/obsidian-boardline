@@ -18,6 +18,7 @@ Obsidian 보관함 안에서 쓰는 화이트보드 플러그인이다. 플로�
 | 타입 검사 | `npm run typecheck` |
 | Obsidian 리뷰 규칙 검사 | `npm run lint` (eslint-plugin-obsidianmd) |
 | README 스크린샷 다시 찍기 | `npm run screenshot` → `docs/images/board.png` (Edge나 Chrome 필요) |
+| 커뮤니티 디렉터리 이미지 다시 찍기 | `npm run listing` → `docs/listing/` (1200×800 비율, 2배 크기) |
 | 새 버전 | `npm version patch` (아래 [출시](#출시)) |
 
 개인용으로 설치하려면 `main.js`, `styles.css`, `manifest.json`을 `<보관함>/.obsidian/plugins/boardline/`에 넣고, Obsidian 설정 > 커뮤니티 플러그인에서 Boardline을 켠다. 개발 중에는 `npm run dev -- --vault …`가 빌드할 때마다 파일을 넣어 주므로 Obsidian에서 `Reload app without saving`(Ctrl+R)만 하면 된다.

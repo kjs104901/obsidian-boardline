@@ -12,6 +12,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "screenshot": "node scripts/screenshot/capture.mjs",
+    "listing": "node scripts/screenshot/capture.mjs listing",
     "version": "node scripts/version-bump.mjs && git add manifest.json versions.json"
   },
   "dependencies": {

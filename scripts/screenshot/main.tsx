@@ -1,10 +1,15 @@
-// The README's screenshot: the board UI (src/board-ui) on a demo board, outside Obsidian, in
-// Obsidian's default light theme (dark with ?dark). capture.mjs serves this page and saves it as a picture once
-// `window.boardReady` is set.
+// Pictures of the board UI (src/board-ui) on demo boards, outside Obsidian, in Obsidian's default
+// theme: the README's screenshot and the community directory's. capture.mjs serves this page and
+// saves it as a picture once `window.boardReady` is set.
+//   ?scene=notes   notes, a table and a sequence diagram (default: flowchart, mind map, stickies)
+//   ?dark          the dark theme        ?noselect   nothing selected
+//   ?empty         a blank board, for trying things out by hand or from a script
+//   ?mobile        as on phones and tablets (no presenting)
 
 import { createRoot } from 'react-dom/client'
 import { BoardScreen, type BoardController, type BoardHost } from '@boardline/board-ui/BoardScreen'
-import { createShape, isShape, type BoardObject, type ColorKey, type Deco } from '@boardline/core/board/model'
+import { createConnector, createShape, isShape, type BoardObject, type ColorKey, type Deco } from '@boardline/core/board/model'
+import { docLink, parseLink } from '@boardline/core/board/links'
 import { emptyBoardFile, formatBoardFile, parseBoard } from '@boardline/core/board/serialize'
 import type { BoardEditor } from '@boardline/core/engine/editor'
 import type { WorkspaceStorage } from '@boardline/core/platform/storage'
@@ -47,6 +52,45 @@ const LOOKS: Record<string, { color: ColorKey; deco: Deco }> = {
   'Share with the team': { color: 'green', deco: 'fill' },
 }
 
+const params = new URLSearchParams(location.search)
+
+/** Notes in the pretend vault, for note cards. */
+const NOTES: Record<string, { title: string; text: string }> = {
+  'Projects/Kickoff notes.md': {
+    title: 'Kickoff notes',
+    text: `**Goal:** a first release by Friday.
+
+## Decisions
+- Boards live next to the notes
+- Charts can come from Mermaid
+- Present the plan from the board
+
+## To do
+- [x] Sketch the flow
+- [x] Gather the open questions
+- [ ] Review the task table
+- [ ] Present on Monday
+
+> Everything on the board stays in sync with the vault.`,
+  },
+}
+
+const TASKS = [
+  ['Task', 'Owner', 'Status'],
+  ['Sketch the flow', 'Mina', 'Done'],
+  ['Review the table', 'Jun', 'In progress'],
+  ['Present the plan', 'Kim', 'Next'],
+]
+
+const SEQUENCE = `sequenceDiagram
+  participant U as You
+  participant B as Board
+  participant V as Vault
+  U->>B: Drop a note
+  B->>V: Read the note
+  V-->>B: Markdown
+  B-->>U: A live note card`
+
 const STICKIES: { text: string; color: ColorKey }[] = [
   { text: 'Drag notes and pictures from the vault onto the board', color: 'yellow' },
   { text: 'Present sections as slides with **F5**', color: 'pink' },
@@ -84,6 +128,11 @@ const host: BoardHost = {
   notify: () => {},
   saveExport: async () => false,
   promptText: async () => null,
+  readNote: async (link) => {
+    const target = parseLink(link)
+    const note = target?.kind === 'doc' ? NOTES[target.path] : undefined
+    return note && target?.kind === 'doc' ? { path: target.path, title: note.title, text: note.text } : null
+  },
   // As the plugin does (?mobile: as on phones and tablets, without presenting).
   setFullscreen: async (on, element) => {
     try {
@@ -93,11 +142,11 @@ const host: BoardHost = {
       // Not allowed here: presenting goes on in the page.
     }
   },
-  canPresent: !new URLSearchParams(location.search).has('mobile'),
+  canPresent: !params.has('mobile'),
 }
 
 // As the plugin does: light or dark by the body's class (add ?dark for a dark picture).
-if (new URLSearchParams(location.search).has('dark')) document.body.className = 'theme-dark'
+if (params.has('dark')) document.body.className = 'theme-dark'
 window.boardLook = followHostLook(document)
 
 const doc = parseBoard(formatBoardFile(emptyBoardFile('Boardline')))
@@ -107,6 +156,7 @@ createRoot(document.getElementById('mount')!).render(<BoardScreen doc={doc} titl
 const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
 
 async function compose(ed: BoardEditor): Promise<void> {
+  if (params.get('scene') === 'notes') return composeNotes(ed)
   await ed.importMermaid(FLOWCHART, { x: 0, y: 0 })
   await ed.importMermaid(MINDMAP, { x: 700, y: -150 })
   const objects: BoardObject[] = [...doc.objects.values()].map((o) => (isShape(o) && LOOKS[o.text] ? { ...o, ...LOOKS[o.text] } : o))
@@ -117,7 +167,21 @@ async function compose(ed: BoardEditor): Promise<void> {
   fitBesideTools(ed)
   // A selected sticky note shows the selection bar.
   const selected = [...doc.objects.values()].find((o) => isShape(o) && o.text === STICKIES[1].text)
-  if (selected) ed.revealObject(selected.id)
+  if (selected && !params.has('noselect')) ed.revealObject(selected.id)
+}
+
+/** A note from the vault as a card, the tasks in a table, and how a note gets onto the board. */
+async function composeNotes(ed: BoardEditor): Promise<void> {
+  let z = 1
+  const card = { ...createShape('note', 0, 0, z++, { w: 400, h: 400 }), link: docLink('Projects/Kickoff notes.md') }
+  const table = { ...createShape('table', 520, 0, z++, { w: 480, h: 160 }), cols: [200, 140, 140], cells: TASKS.map((r) => [...r]) }
+  const todo = { ...createShape('sticky', 1060, 0, z++), text: 'Tables keep **Markdown** in their cells', color: 'yellow' as ColorKey }
+  ed.replaceAll([card, table, todo], 'Demo board')
+  await ed.importMermaid(SEQUENCE, { x: 780, y: 520 })
+  const line = { ...createConnector({ objectId: card.id, side: 'right' }, { objectId: table.id, side: 'left' }, doc.maxZ() + 1), label: 'tasks' }
+  ed.replaceAll([...doc.objects.values(), line], 'Demo board')
+  await frame()
+  fitBesideTools(ed)
 }
 
 /** The whole board in view, clear of the tool bar (left) and the view controls (right). */
@@ -137,8 +201,7 @@ async function start(): Promise<void> {
   while (!controller.current) await frame()
   const ed = controller.current.editor
   window.boardEditor = ed
-  // ?empty: a blank board, for trying things out by hand or from a script.
-  if (!new URLSearchParams(location.search).has('empty')) await compose(ed)
+  if (!params.has('empty')) await compose(ed)
   // The board draws on the next frames; give the text and grid a moment.
   for (let i = 0; i < 10; i++) await frame()
   window.boardReady = true

@@ -1,6 +1,8 @@
-// Saves the README's screenshot (docs/images/board.png): serves scripts/screenshot/ with Vite,
-// opens it in a headless Edge or Chrome, and captures the page once the demo board is drawn.
-// Usage: node scripts/screenshot/capture.mjs [out.png]   (BROWSER=<path> picks the browser)
+// Pictures of demo boards: serves scripts/screenshot/ with Vite, opens the pages in a headless
+// Edge or Chrome, and captures each once its board is drawn.
+//   node scripts/screenshot/capture.mjs [out.png]   the README's screenshot (docs/images/board.png)
+//   node scripts/screenshot/capture.mjs listing     the community directory's (docs/listing/*.png, 1200x800 at 2x)
+// BROWSER=<path> picks the browser.
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -10,11 +12,17 @@ import { createServer } from 'vite'
 import { phosphorIcons } from '../icons-plugin.mjs'
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
-const out = path.resolve(process.argv[2] ?? here('../../docs/images/board.png'))
-const WIDTH = 1440
-const HEIGHT = 860
-const SCALE = 2
 const PORT = 9339
+
+const jobs =
+  process.argv[2] === 'listing'
+    ? [
+        { page: 'hero.html', width: 1200, height: 800, out: here('../../docs/listing/1-boardline.png') },
+        { page: 'index.html?dark', width: 1200, height: 800, out: here('../../docs/listing/2-flowcharts.png') },
+        { page: 'index.html?scene=notes', width: 1200, height: 800, out: here('../../docs/listing/3-notes.png') },
+      ]
+    : [{ page: 'index.html', width: 1440, height: 860, out: path.resolve(process.argv[2] ?? here('../../docs/images/board.png')) }]
+const SCALE = 2
 
 const BROWSERS = [
   process.env.BROWSER,
@@ -36,14 +44,14 @@ const server = await createServer({
   server: { port: 0 },
 })
 await server.listen()
-const url = server.resolvedUrls.local[0]
+const base = server.resolvedUrls.local[0]
 
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'boardline-shot-'))
 const browser = spawn(browserPath, [
   '--headless=new',
   `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${profile}`,
-  `--window-size=${WIDTH},${HEIGHT}`,
+  '--window-size=1440,900',
   '--hide-scrollbars',
   '--no-first-run',
   'about:blank',
@@ -82,19 +90,23 @@ try {
     })
 
   await send('Runtime.enable')
-  await send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: SCALE, mobile: false })
-  await send('Page.navigate', { url })
-  let ready = false
-  for (let i = 0; i < 150 && !ready; i++) {
-    await sleep(200)
-    ready = (await send('Runtime.evaluate', { expression: 'window.boardReady === true', returnByValue: true })).result.value === true
+  for (const job of jobs) {
+    await send('Emulation.setDeviceMetricsOverride', { width: job.width, height: job.height, deviceScaleFactor: SCALE, mobile: false })
+    await send('Page.navigate', { url: base + job.page })
+    await sleep(300)
+    let ready = false
+    for (let i = 0; i < 150 && !ready; i++) {
+      await sleep(200)
+      ready = (await send('Runtime.evaluate', { expression: 'window.boardReady === true', returnByValue: true })).result.value === true
+    }
+    if (!ready) throw new Error(`${job.page}: the demo board did not finish drawing.`)
+    // Note cards read their notes and fonts settle a moment after the first frames.
+    await sleep(800)
+    const shot = await send('Page.captureScreenshot', { format: 'png' })
+    fs.mkdirSync(path.dirname(job.out), { recursive: true })
+    fs.writeFileSync(job.out, Buffer.from(shot.data, 'base64'))
+    console.log(`Saved ${path.relative(process.cwd(), job.out)} (${job.width * SCALE}×${job.height * SCALE})`)
   }
-  if (!ready) throw new Error('The demo board did not finish drawing.')
-  await sleep(500)
-  const shot = await send('Page.captureScreenshot', { format: 'png' })
-  fs.mkdirSync(path.dirname(out), { recursive: true })
-  fs.writeFileSync(out, Buffer.from(shot.data, 'base64'))
-  console.log(`Saved ${path.relative(process.cwd(), out)} (${WIDTH * SCALE}×${HEIGHT * SCALE})`)
   ws.close()
 } finally {
   browser.kill()
