@@ -59,7 +59,7 @@ describe('board files', () => {
 
   it('makes safe file names', () => {
     expect(boardFileName('회의: 1/2?')).toBe('회의 12.board')
-    expect(boardFileName('   ')).toBe('새 보드.board')
+    expect(boardFileName('   ')).toBe('New board.board')
     expect(titleFromFileName('던전 연출.board')).toBe('던전 연출')
   })
 })

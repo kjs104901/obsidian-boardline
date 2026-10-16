@@ -18,6 +18,8 @@ import {
   SnapObjectsIcon,
   UndoIcon,
 } from './icons'
+import { loadPref, savePref } from '@boardline/core/platform/prefs'
+import { t } from '@boardline/core/i18n'
 
 /** Snapping while dragging: to the grid, to other objects. Kept per device for every board. */
 export interface SnapSettings {
@@ -28,53 +30,36 @@ export interface SnapSettings {
 const SNAP_KEY = 'boardline.snap'
 
 export function readSnapSettings(): SnapSettings {
-  try {
-    const v = JSON.parse(localStorage.getItem(SNAP_KEY) ?? 'null') as Partial<SnapSettings> | null
-    if (v && typeof v.grid === 'boolean' && typeof v.objects === 'boolean') return { grid: v.grid, objects: v.objects }
-  } catch {
-    // Storage unavailable: the defaults.
-  }
+  const v = loadPref(SNAP_KEY) as Partial<SnapSettings> | null
+  if (v && typeof v.grid === 'boolean' && typeof v.objects === 'boolean') return { grid: v.grid, objects: v.objects }
   return { grid: true, objects: true }
 }
 
 export function writeSnapSettings(s: SnapSettings): void {
-  try {
-    localStorage.setItem(SNAP_KEY, JSON.stringify(s))
-  } catch {
-    // Not kept; it still applies to this session.
-  }
+  savePref(SNAP_KEY, s)
 }
 
 /** Whether a board is shown read-only here (per device, like its view). */
 export function readReadOnly(boardId: string): boolean {
-  try {
-    return localStorage.getItem(`boardline.readonly.${boardId}`) === '1'
-  } catch {
-    return false
-  }
+  return loadPref(`boardline.readonly.${boardId}`) === true
 }
 
 export function writeReadOnly(boardId: string, on: boolean): void {
-  try {
-    if (on) localStorage.setItem(`boardline.readonly.${boardId}`, '1')
-    else localStorage.removeItem(`boardline.readonly.${boardId}`)
-  } catch {
-    // Not kept.
-  }
+  savePref(`boardline.readonly.${boardId}`, on ? true : null)
 }
 
 interface Props {
   editor: BoardEditor
   status: EditorStatus | null
   snap: SnapSettings
-  onSnap(s: SnapSettings): void
+  onSnap: (s: SnapSettings) => void
   readOnly: boolean
-  onReadOnly(on: boolean): void
+  onReadOnly: (on: boolean) => void
   helpOpen: boolean
-  onHelp(): void
+  onHelp: () => void
   /** The presenting order panel. */
   slidesOpen: boolean
-  onSlides(): void
+  onSlides: () => void
 }
 
 export function ViewControls({ editor, status, snap, onSnap, readOnly, onReadOnly, helpOpen, onHelp, slidesOpen, onSlides }: Props) {
@@ -107,17 +92,17 @@ export function ViewControls({ editor, status, snap, onSnap, readOnly, onReadOnl
   return (
     <div className="bl-view-controls" ref={rootRef}>
       <div className="bl-control-group">
-        <button className={menuOpen ? 'active' : ''} title="보드 설정" onClick={() => setMenuOpen((v) => !v)}>
+        <button className={menuOpen ? 'active' : ''} title={t('view.settings')} onClick={() => setMenuOpen((v) => !v)}>
           <GearIcon />
         </button>
       </div>
       {menuOpen && (
         <div className="bl-menu bl-settings-menu">
-          <CheckItem icon={<GridIcon />} label="그리드에 맞추기" checked={snap.grid} onClick={() => onSnap({ ...snap, grid: !snap.grid })} />
-          <CheckItem icon={<SnapObjectsIcon />} label="객체에 맞추기" checked={snap.objects} onClick={() => onSnap({ ...snap, objects: !snap.objects })} />
+          <CheckItem icon={<GridIcon />} label={t('view.snapGrid')} checked={snap.grid} onClick={() => onSnap({ ...snap, grid: !snap.grid })} />
+          <CheckItem icon={<SnapObjectsIcon />} label={t('view.snapObjects')} checked={snap.objects} onClick={() => onSnap({ ...snap, objects: !snap.objects })} />
           <CheckItem
             icon={<LockIcon />}
-            label="읽기 전용"
+            label={t('readOnly')}
             checked={readOnly}
             onClick={() => {
               onReadOnly(!readOnly)
@@ -127,34 +112,34 @@ export function ViewControls({ editor, status, snap, onSnap, readOnly, onReadOnl
         </div>
       )}
       <div className="bl-control-group">
-        <button title="확대" onClick={run(() => editor.zoomBy(1.25))}>
+        <button title={t('view.zoomIn')} onClick={run(() => editor.zoomBy(1.25))}>
           <PlusIcon />
         </button>
-        <button title={`화면 비율 초기화 (Ctrl+0) · 지금 ${zoom}%`} onClick={run(() => editor.resetZoom())}>
+        <button title={t('view.resetZoom', zoom)} onClick={run(() => editor.resetZoom())}>
           <ResetZoomIcon />
         </button>
-        <button title="화면 맞춤 확대 (Shift+1)" onClick={run(() => editor.zoomToFit(false))}>
+        <button title={t('view.fitKey')} onClick={run(() => editor.zoomToFit(false))}>
           <FitIcon />
         </button>
-        <button title="축소" onClick={run(() => editor.zoomBy(1 / 1.25))}>
+        <button title={t('view.zoomOut')} onClick={run(() => editor.zoomBy(1 / 1.25))}>
           <MinusIcon />
         </button>
       </div>
       {!readOnly && (
         <div className="bl-control-group">
-          <button disabled={!status?.canUndo} title="실행 취소 (Ctrl+Z)" onClick={run(() => editor.undo())}>
+          <button disabled={!status?.canUndo} title={t('view.undo')} onClick={run(() => editor.undo())}>
             <UndoIcon />
           </button>
-          <button disabled={!status?.canRedo} title="다시 실행 (Ctrl+Shift+Z)" onClick={run(() => editor.redo())}>
+          <button disabled={!status?.canRedo} title={t('view.redo')} onClick={run(() => editor.redo())}>
             <RedoIcon />
           </button>
         </div>
       )}
       <div className="bl-control-group">
-        <button className={slidesOpen ? 'active' : ''} title="발표 순서" onClick={onSlides}>
+        <button className={slidesOpen ? 'active' : ''} title={t('slides.title')} onClick={onSlides}>
           <SlidesIcon />
         </button>
-        <button className={helpOpen ? 'active' : ''} title="보드 도움말 (Shift+/)" onClick={onHelp}>
+        <button className={helpOpen ? 'active' : ''} title={t('view.help')} onClick={onHelp}>
           <HelpIcon />
         </button>
       </div>

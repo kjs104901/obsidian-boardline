@@ -270,7 +270,7 @@ const layouts = new WeakMap<MeasureAt, Map<string, RichLayout>>()
 export function layoutText(text: string, wrap: number, base: RichBase, measureAt: MeasureAt, alignWidth = wrap): RichLayout {
   if (!text) return EMPTY
   let cache = layouts.get(measureAt)
-  if (!cache) layouts.set(measureAt, (cache = new Map()))
+  if (!cache) layouts.set(measureAt, (cache = new Map<string, RichLayout>()))
   const key = `${wrap}|${alignWidth}|${base.size}|${base.line}|${base.align}|${base.note ? 1 : 0}${base.inline ? 1 : 0}${base.bold ? 1 : 0}|${FONT_FAMILY}|${text}`
   let l = cache.get(key)
   if (!l) {

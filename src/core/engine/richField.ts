@@ -80,7 +80,7 @@ function domLines(root: Node, keepLastBreak = false): Run[][] {
   }
   const walk = (node: Node, marks: Marks) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = (node.nodeValue ?? '').replace(/ /g, ' ').replace(/​/g, '')
+      const text = (node.nodeValue ?? '').replace(/\u00a0/g, ' ').replace(/\u200b/g, '')
       if (!text) return
       breakIfPending()
       text.split('\n').forEach((t, i) => {
@@ -198,7 +198,7 @@ export class RichField {
       doc.execCommand('insertLineBreak')
     })
     el.addEventListener('input', (e) => {
-      if ((e as InputEvent).inputType === 'insertText' && !this.composing) this.typedMarks()
+      if ((e).inputType === 'insertText' && !this.composing) this.typedMarks()
     })
   }
 
@@ -341,7 +341,7 @@ export class RichField {
       el.textContent = m[1]
       range.insertNode(el)
       // Typing goes on after the mark, not inside it.
-      const after = this.doc.createTextNode('​')
+      const after = this.doc.createTextNode('\u200b')
       el.after(after)
       sel.collapse(after, 1)
       return

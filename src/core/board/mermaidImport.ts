@@ -22,7 +22,7 @@ export interface FlowNode {
   id: string
   text: string
   shape: ShapeKind
-  /** Upside-down trapezoid ([\ /]). */
+  /** Turned upside down: a trapezoid ([\ /]) or triangle wider at the top. */
   flipped?: boolean
 }
 
@@ -108,7 +108,7 @@ const SHAPES: [string, string[], ShapeKind, boolean?][] = [
   ['(((', [')))'], 'ellipse'],
   ['((', ['))'], 'ellipse'],
   ['([', ['])'], 'pill'],
-  ['[[', [']]'], 'rect'],
+  ['[[', [']]'], 'subroutine'],
   ['[(', [')]'], 'cylinder'],
   ['[/', ['/]'], 'parallelogram'],
   ['[/', ['\\]'], 'trapezoid'],
@@ -120,6 +120,53 @@ const SHAPES: [string, string[], ShapeKind, boolean?][] = [
   ['{', ['}'], 'diamond'],
   ['>', [']'], 'rect'],
 ]
+
+/** Mermaid 11 shape names (`id@{ shape: doc }`), long names and aliases alike. */
+const NAMED_SHAPES: [string[], ShapeKind, boolean?][] = [
+  [['rect', 'rectangle', 'proc', 'process', 'rounded', 'event'], 'rect'],
+  [['stadium', 'pill', 'terminal'], 'pill'],
+  [['circle', 'circ', 'dbl-circ', 'double-circle', 'sm-circ', 'small-circle', 'start', 'f-circ', 'filled-circle', 'junction', 'fr-circ', 'framed-circle', 'stop'], 'ellipse'],
+  [['diam', 'diamond', 'decision', 'question'], 'diamond'],
+  [['hex', 'hexagon', 'prepare'], 'hexagon'],
+  [['cyl', 'cylinder', 'database', 'db', 'h-cyl', 'das', 'horizontal-cylinder', 'lin-cyl', 'disk', 'lined-cylinder'], 'cylinder'],
+  [['lean-r', 'lean-right', 'in-out'], 'parallelogram'],
+  [['lean-l', 'lean-left', 'out-in'], 'parallelogram-flip'],
+  [['trap-b', 'trapezoid', 'priority', 'trapezoid-bottom'], 'trapezoid'],
+  [['trap-t', 'manual', 'inv-trapezoid', 'trapezoid-top'], 'trapezoid', true],
+  [['tri', 'triangle', 'extract'], 'triangle'],
+  [['flip-tri', 'flipped-triangle', 'manual-file'], 'triangle', true],
+  [['doc', 'document', 'lin-doc', 'lined-document'], 'document'],
+  [['docs', 'documents', 'st-doc', 'stacked-document', 'processes', 'procs', 'st-rect', 'stacked-rectangle'], 'documents'],
+  [['subproc', 'subprocess', 'subroutine', 'fr-rect', 'framed-rectangle'], 'subroutine'],
+  [['sl-rect', 'sloped-rectangle', 'manual-input'], 'manual-input'],
+  [['delay', 'half-rounded-rectangle'], 'delay'],
+  [['display', 'curv-trap', 'curved-trapezoid'], 'display'],
+  [['cloud'], 'cloud'],
+  [['brace', 'brace-l', 'comment'], 'brace'],
+]
+
+/** `@{ shape: doc, label: "Text" }` after a node id: the shape and text it gives, and the rest. */
+function readShapeData(s: string): { shape: ShapeKind; flipped?: boolean; text?: string; rest: string } | null {
+  if (!s.startsWith('@{')) return null
+  let quote = false
+  let end = -1
+  for (let i = 2; i < s.length && end < 0; i++) {
+    if (s[i] === '"') quote = !quote
+    else if (s[i] === '}' && !quote) end = i
+  }
+  if (end < 0) return null
+  const fields = new Map<string, string>()
+  for (const m of s.slice(2, end).matchAll(/([\w-]+)\s*:\s*("(?:[^"]*)"|[^,]*)/g)) fields.set(m[1], m[2].trim())
+  const name = (fields.get('shape') ?? 'rect').replace(/^"|"$/g, '').toLowerCase()
+  const named = NAMED_SHAPES.find(([names]) => names.includes(name))
+  const label = fields.get('label')
+  return {
+    shape: named?.[1] ?? 'rect',
+    ...(named?.[2] ? { flipped: true } : {}),
+    ...(label !== undefined ? { text: cleanText(label) } : {}),
+    rest: s.slice(end + 1),
+  }
+}
 
 const ID = /^[\p{L}\p{N}_][\p{L}\p{N}_.-]*/u
 
@@ -133,6 +180,11 @@ function readNode(s: string): { node: FlowNode; defined: boolean; rest: string }
   if (cut > 0) id = id.slice(0, cut)
   else if (id.endsWith('-')) id = id.slice(0, -1)
   let rest = s.slice(id.length)
+  const data = readShapeData(rest)
+  if (data) {
+    const node: FlowNode = { id, text: data.text ?? id, shape: data.shape, ...(data.flipped ? { flipped: true } : {}) }
+    return { node, defined: true, rest: data.rest }
+  }
   for (const [open, closers, shape, flipped] of SHAPES) {
     if (!rest.startsWith(open)) continue
     const body = rest.slice(open.length)
@@ -295,7 +347,7 @@ function parseMindmapTree(text: string): MindmapTree {
 export interface BuildContext {
   /** Shape after its text changed (autosize). */
   autosize: (s: ShapeObject) => ShapeObject
-  /** ELK layout (engine/autoLayout.ts): positions by shape id, and the sides connectors attach to. */
+  /** ELK layout (engine/autoLayout.ts): positions by shape id, and where connectors' ends attach. */
   layout: (shapes: ShapeObject[], connectors: ConnectorObject[], direction: 'DOWN' | 'RIGHT') => Promise<LayoutResult>
 }
 
@@ -330,10 +382,10 @@ async function buildFlowchart(d: Flowchart, ctx: BuildContext): Promise<BoardObj
       if (p) shapes[i] = { ...shapes[i], x: p.x, y: p.y }
     }
     for (let i = 0; i < connectors.length; i++) {
-      const sides = result.sides.get(connectors[i].id)
+      const ends = result.ends.get(connectors[i].id)
       const c = connectors[i]
-      if (sides && 'objectId' in c.from && 'objectId' in c.to) {
-        connectors[i] = { ...c, from: { objectId: c.from.objectId, side: sides.from }, to: { objectId: c.to.objectId, side: sides.to } }
+      if (ends && 'objectId' in c.from && 'objectId' in c.to) {
+        connectors[i] = { ...c, from: { objectId: c.from.objectId, ...ends.from }, to: { objectId: c.to.objectId, ...ends.to } }
       }
     }
   }
@@ -367,15 +419,15 @@ function buildSequence(d: Sequence, ctx: BuildContext): BoardObject[] {
   const stem = Math.max(ACTOR_STEM, dy + MESSAGE_STEP - 50)
   const actors = new Map<string, ShapeObject>()
   d.participants.forEach((p, i) => actors.set(p.id, ctx.autosize({ ...createShape('actor', i * 240, 0, z++), text: p.label, stem })))
-  const messages = d.messages.map((m, i) => {
+  const messages = d.messages.map((m, i): ConnectorObject => {
     const from = actors.get(m.from)!
     const to = actors.get(m.to)!
     const self = from === to
     return {
       ...createConnector({ objectId: from.id, dy: plan[i] }, { objectId: to.id, dy: self ? plan[i] + MESSAGE_STEP : plan[i] }, z++),
       label: m.text,
-      color: 'gray' as ColorKey,
-      endCap: (m.arrow ? 'arrow' : 'none') as EndCap,
+      color: 'gray',
+      endCap: m.arrow ? 'arrow' : 'none',
       ...(m.dashed ? { line: 'dashed' as const } : {}),
     }
   })

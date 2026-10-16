@@ -11,8 +11,10 @@ import { BoardEditor, type EditorStatus } from '@boardline/core/engine/editor'
 import type { Point, Rect } from '@boardline/core/engine/geometry'
 import type { ViewportState } from '@boardline/core/engine/viewport'
 import type { WorkspaceStorage } from '@boardline/core/platform/storage'
+import { loadPref, savePref } from '@boardline/core/platform/prefs'
 import type { NoteFile } from '@boardline/core/engine/noteCard'
 import { THEME_EVENT } from '@boardline/core/theme/events'
+import { shortcutKey } from '@boardline/core/engine/keys'
 import { FindBar } from './FindBar'
 import { HistoryPanel } from './HistoryPanel'
 import { SelectionToolbar } from './SelectionToolbar'
@@ -25,6 +27,7 @@ import { boardToCanvas } from '@boardline/core/board/toCanvas'
 import { ContextMenu } from './ContextMenu'
 import { LaserPointer } from './LaserPointer'
 import './board.css'
+import { t } from '@boardline/core/i18n'
 
 export type ExportFormat = 'png' | 'svg'
 
@@ -49,11 +52,11 @@ export interface BoardHost {
    */
   readNote?(link: string): Promise<NoteFile | null>
   /** Save a new note with `markdown` (named after `name`, beside the board) and show it; false when it wasn't made. */
-  saveNote?(name: string, markdown: string): Promise<boolean>
+  saveNote?: (name: string, markdown: string) => Promise<boolean>
   /** Save a new canvas (.canvas JSON, named after `name`, beside the board) and show it; absent where there are no canvases. */
-  saveCanvas?(name: string, json: string): Promise<boolean>
+  saveCanvas?: (name: string, json: string) => Promise<boolean>
   /** The file of the board with this id (a canvas names files by path), or null. */
-  boardFile?(boardId: string): Promise<string | null>
+  boardFile?: (boardId: string) => Promise<string | null>
   /** Ask for files to put on the board (notes, pictures, boards, canvases): their links, or null. Without it there is no button. */
   pickFiles?(): Promise<string[] | null>
   /** Calls `changed` with the paths of files that changed (null: any may have); returns how to stop. */
@@ -91,14 +94,14 @@ export type BoardMenuEntry = { label: string; run: () => void } | { caption: str
 /** The board's export/import menu, for the view to show as an Obsidian menu. */
 export function boardMenu(c: BoardController, opts: { selected: number }): BoardMenuEntry[] {
   return [
-    { caption: opts.selected ? '선택한 객체' : '보드 전체' },
-    { label: 'PNG 이미지', run: () => void c.exportImage('png') },
-    { label: 'SVG 이미지', run: () => void c.exportImage('svg') },
-    ...(c.exportNote ? [{ label: '노트로 내보내기', run: () => void c.exportNote?.() }] : []),
-    ...(c.exportCanvas ? [{ label: '캔버스(.canvas)로 내보내기', run: () => void c.exportCanvas?.() }] : []),
+    { caption: opts.selected ? t('export.selection') : t('export.wholeBoard') },
+    { label: t('export.png'), run: () => void c.exportImage('png') },
+    { label: t('export.svg'), run: () => void c.exportImage('svg') },
+    ...(c.exportNote ? [{ label: t('export.note'), run: () => void c.exportNote?.() }] : []),
+    ...(c.exportCanvas ? [{ label: t('export.canvas'), run: () => void c.exportCanvas?.() }] : []),
     'separator',
-    { caption: '가져오기' },
-    { label: 'Mermaid 가져오기…', run: () => c.importMermaid() },
+    { caption: t('export.import') },
+    { label: t('mermaid.importMenu'), run: () => c.importMermaid() },
   ]
 }
 
@@ -195,7 +198,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     editorRef.current = ed
     setEditor(ed)
     // First time this board is opened here: show all of it.
-    if (!readViewport(viewportKey) && doc.objects.size > 0) requestAnimationFrame(() => ed.zoomToFit(false))
+    if (!readViewport(viewportKey) && doc.objects.size > 0) window.requestAnimationFrame(() => ed.zoomToFit(false))
     return () => {
       ed.destroy()
       if (editorRef.current === ed) editorRef.current = null
@@ -218,8 +221,8 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
   // Following a board link into this board: select the object or show the saved view.
   useEffect(() => {
     if (!revealRequest || !editor) return
-    const t = setTimeout(() => editor.showTarget(revealRequest), 60)
-    return () => clearTimeout(t)
+    const t = window.setTimeout(() => editor.showTarget(revealRequest), 60)
+    return () => window.clearTimeout(t)
   }, [revealRequest?.nonce, editor])
 
   /** A link object for `link` (web pages get their title, icon and preview first). */
@@ -230,15 +233,15 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     let fields: LinkFields
     const target = parseLink(link)
     if (target?.kind === 'board') {
-      fields = { link, text: linkTitle ?? (await h.linkTitle?.(link)) ?? '보드' }
+      fields = { link, text: linkTitle ?? (await h.linkTitle?.(link)) ?? t('common.board') }
     } else if (target?.kind === 'doc') {
       fields = { link, text: linkTitle ?? target.path.slice(target.path.lastIndexOf('/') + 1).replace(/\.md$/i, '') }
     } else {
-      h.notify('링크 정보를 가져오는 중…')
+      h.notify(t('link.fetching'))
       const read = await webLinkFields(h.links, (image) => h.storeImage(image), link)
       fields = read.fields
       // Some sites turn away anything that isn't a browser; say so rather than fail quietly.
-      h.notify(read.found ? null : '이 사이트에서 링크 정보를 받지 못해 주소만 넣었습니다')
+      h.notify(read.found ? null : t('link.fetchFailed'))
     }
     if (replaceId) ed.updateLinkObject(replaceId, fields)
     else ed.insertLinkObject(fields, at)
@@ -249,7 +252,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
   /** Ask the plugin for a link: a new link object, a link on the selected shapes, or another target. */
   const requestLink = async (mode: 'create' | 'shape' | 'edit', id?: string, initial?: string) => {
     setLinking(true)
-    const title = mode === 'shape' ? '링크 걸기' : mode === 'edit' ? '링크 바꾸기' : '링크 추가'
+    const title = mode === 'shape' ? t('link.setOnShape') : mode === 'edit' ? t('link.change') : t('link.add')
     const picked = await hostRef.current.pickLink({ title, initial }).finally(() => setLinking(false))
     editorRef.current?.focus()
     if (!picked) return
@@ -281,15 +284,15 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
 
   const importMermaid = async () => {
     const text = await hostRef.current.promptText({
-      title: 'Mermaid 가져오기',
-      placeholder: 'flowchart TD\n  A[시작] --> B{조건}\n  B -->|예| C[끝]\n\nsequenceDiagram, mindmap도 읽습니다.',
-      hint: '보드에 Mermaid 글을 그냥 붙여넣어도 됩니다.',
-      action: '가져오기',
+      title: t('mermaid.importTitle'),
+      placeholder: t('mermaid.placeholder'),
+      hint: t('mermaid.hint'),
+      action: t('export.import'),
     })
     const ed = editorRef.current
     if (!text || !ed) return
     if (await ed.importMermaid(text)) ed.focus()
-    else hostRef.current.notify('flowchart, graph, sequenceDiagram, mindmap으로 시작하는 Mermaid만 읽을 수 있습니다')
+    else hostRef.current.notify(t('mermaid.unsupported'))
   }
 
   const exportImage = async (format: ExportFormat) => {
@@ -299,12 +302,12 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     try {
       const bytes = await ed.exportImage(format)
       if (!bytes) {
-        h.notify('내보낼 객체가 없습니다')
+        h.notify(t('export.nothing'))
         return
       }
-      if (await h.saveExport(`${title}.${format}`, format, bytes)) h.notify(`${format.toUpperCase()}로 내보냈습니다`)
+      if (await h.saveExport(`${title}.${format}`, format, bytes)) h.notify(t('export.done', format.toUpperCase()))
     } catch (err) {
-      h.notify(`내보내기 실패: ${err instanceof Error ? err.message : String(err)}`)
+      h.notify(t('export.failed', err instanceof Error ? err.message : String(err)))
     }
   }
 
@@ -313,7 +316,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     if (!ed) return
     const slides = ed.slides()
     if (slides.length === 0) {
-      hostRef.current.notify('발표할 내용이 없습니다')
+      hostRef.current.notify(t('present.nothing'))
       return
     }
     setFind(null)
@@ -334,7 +337,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     if (!ed) return
     ed.setPresenting(false)
     // Back to where the board was, once the window has its normal size again.
-    setTimeout(() => before && ed.setViewState(before), 300)
+    window.setTimeout(() => before && ed.setViewState(before), 300)
     ed.focus()
   }
   const go = (delta: number) => setPresenting((p) => (p ? { ...p, index: Math.max(0, Math.min(p.slides.length - 1, p.index + delta)) } : p))
@@ -368,10 +371,10 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     const markdown = ed?.exportMarkdown()
     if (!ed || !save) return
     if (!markdown?.trim()) {
-      hostRef.current.notify('노트로 옮길 내용이 없습니다')
+      hostRef.current.notify(t('export.noteEmpty'))
       return
     }
-    const name = `${title} 정리`.replace(/[\\/:*?"<>|#^[\]]/g, ' ').trim()
+    const name = t('export.noteName', title).replace(/[\\/:*?"<>|#^[\]]/g, ' ').trim()
     await save(name, markdown)
   }
   const exportNoteRef = useRef(exportNote)
@@ -384,12 +387,12 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     const scene = ed?.exportScene()
     if (!ed || !h.saveCanvas) return
     if (!scene) {
-      h.notify('캔버스로 옮길 내용이 없습니다')
+      h.notify(t('export.canvasEmpty'))
       return
     }
     const { json, skipped } = await boardToCanvas(scene.objects, scene.mindmap, h.boardFile)
-    const name = title.replace(/[\\/:*?"<>|#^[\]]/g, ' ').trim() || '보드'
-    if ((await h.saveCanvas(name, json)) && skipped > 0) h.notify(`캔버스에 없는 ${skipped}개(펜 그림, 한쪽 끝이 빈 선 등)는 빼고 옮겼습니다`)
+    const name = title.replace(/[\\/:*?"<>|#^[\]]/g, ' ').trim() || t('common.board')
+    if ((await h.saveCanvas(name, json)) && skipped > 0) h.notify(t('export.canvasSkipped', skipped))
   }
   const exportCanvasRef = useRef(exportCanvas)
   exportCanvasRef.current = exportCanvas
@@ -402,20 +405,21 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
       const t = e.target as HTMLElement | null
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       const mod = e.ctrlKey || e.metaKey
-      if (mod && !e.altKey && !e.shiftKey && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
+      const key = shortcutKey(e)
+      if (mod && !e.altKey && !e.shiftKey && (key === 'f' || key === 'h')) {
         e.preventDefault()
-        setFind((f) => ({ query: f?.query ?? '', key: Date.now(), replace: e.key.toLowerCase() === 'h' }))
+        setFind((f) => ({ query: f?.query ?? '', key: Date.now(), replace: key === 'h' }))
         return
       }
       if (typing || mod || e.altKey) return
-      if (readOnlyRef.current && ['k', 'x'].includes(e.key.toLowerCase())) return
+      if (readOnlyRef.current && ['k', 'x'].includes(key)) return
       if (e.key === 'F5') {
         e.preventDefault()
         startPresentingRef.current()
-      } else if (e.key.toLowerCase() === 'k') {
+      } else if (key === 'k') {
         e.preventDefault()
         void requestLinkRef.current('create')
-      } else if (e.key.toLowerCase() === 'x') {
+      } else if (key === 'x') {
         // Keep the X out of the search box that opens with the panel.
         e.preventDefault()
         setFlyout((v) => (v === 'icons' ? null : 'icons'))
@@ -435,12 +439,12 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     if (!presenting) return
     const ed = editorRef.current
     const slide = presenting.slides[presenting.index]
-    const t = setTimeout(() => ed?.flyTo(slide), presenting.index === 0 ? 300 : 0)
+    const t = window.setTimeout(() => ed?.flyTo(slide), presenting.index === 0 ? 300 : 0)
     const onResize = () => ed?.flyTo(slide, 32, 0)
     const w = win()
     w.addEventListener('resize', onResize)
     return () => {
-      clearTimeout(t)
+      window.clearTimeout(t)
       w.removeEventListener('resize', onResize)
     }
   }, [presenting?.index, presenting?.slides])
@@ -454,7 +458,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
       else if (e.key === 'Home') go(-Infinity)
       else if (e.key === 'End') go(Infinity)
       else if (e.key === 'Escape' || e.key === 'F5') stopPresenting()
-      else if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) setLaser((v) => !v)
+      else if (shortcutKey(e) === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) setLaser((v) => !v)
       else return
       e.preventDefault()
       e.stopPropagation()
@@ -481,7 +485,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
           {laser && <LaserPointer />}
           <div className="bl-present-counter">
             {presenting.index + 1} / {presenting.slides.length}
-            <span> · ←/→ 넘기기 · Esc 끝내기 · </span>
+            <span> {t('present.hint')} </span>
             <button
               className={laser ? 'active' : ''}
               onClick={(e) => {
@@ -489,7 +493,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
                 setLaser((v) => !v)
               }}
             >
-              레이저 L
+              {t('present.laser')}
             </button>
           </div>
         </div>
@@ -524,9 +528,9 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
         />
       )}
       {readOnly ? (
-        <button className="bl-readonly-badge" title="읽기 전용 끄기" onClick={() => changeReadOnly(false)}>
+        <button className="bl-readonly-badge" title={t('readOnly.off')} onClick={() => changeReadOnly(false)}>
           <LockIcon />
-          읽기 전용
+          {t('readOnly')}
         </button>
       ) : (
         <ToolRail
@@ -580,25 +584,18 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
 }
 
 function readViewport(key: string): ViewportState | undefined {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as ViewportState) : undefined
-  } catch {
-    return undefined
-  }
+  const v = loadPref(key) as Partial<ViewportState> | null
+  const ok = v && [v.offsetX, v.offsetY, v.zoom].every((n) => typeof n === 'number' && Number.isFinite(n))
+  return ok ? (v as ViewportState) : undefined
 }
 
 function writeViewport(key: string, s: ViewportState): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(s))
-  } catch {
-    // not remembered
-  }
+  savePref(key, s)
 }
 
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 function debounce(key: string, fn: () => void, ms: number): void {
   const t = debounceTimers.get(key)
-  if (t) clearTimeout(t)
-  debounceTimers.set(key, setTimeout(fn, ms))
+  if (t) window.clearTimeout(t)
+  debounceTimers.set(key, window.setTimeout(fn, ms))
 }

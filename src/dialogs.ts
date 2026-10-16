@@ -4,6 +4,7 @@
 import { Modal, SuggestModal, TFile, type App } from 'obsidian'
 import { boardLink, docLink, normalizeAddress } from '@boardline/core/board/links'
 import { BOARD_EXT } from '@boardline/core/board/serialize'
+import { t } from '@boardline/core/i18n'
 
 type Pick = { link: string; title?: string }
 type Item = { kind: 'web'; url: string } | { kind: 'note' | 'board' | 'canvas' | 'picture'; file: TFile }
@@ -17,12 +18,12 @@ function kindOf(f: TFile): 'note' | 'board' | 'canvas' | 'picture' | null {
   return PICTURE.test(f.extension) ? 'picture' : null
 }
 
-const KIND_NAME = { note: '노트', board: '보드', canvas: '캔버스', picture: '그림' } as const
+const KIND_NAME = { get note() { return t('file.kindNote') }, get board() { return t('common.board') }, get canvas() { return t('file.kindCanvas') }, get picture() { return t('file.kindPicture') } } as const
 
 /** The board's id, read from its file. */
 export async function boardIdOf(app: App, file: TFile): Promise<string | null> {
   try {
-    const id = JSON.parse(await app.vault.cachedRead(file)).id
+    const { id } = JSON.parse(await app.vault.cachedRead(file)) as { id?: unknown }
     return typeof id === 'string' ? id : null
   } catch {
     return null
@@ -50,16 +51,16 @@ export class LinkPicker extends SuggestModal<Item> {
     private files = false,
   ) {
     super(app)
-    this.setPlaceholder(files ? `${heading}: 노트, 보드, 캔버스, 그림 이름` : `${heading}: 노트나 보드 이름, 또는 웹 주소`)
+    this.setPlaceholder(files ? t('dialog.filesHint', heading) : t('dialog.linkHint', heading))
     this.setInstructions([
-      { command: '↑↓', purpose: '고르기' },
-      { command: 'Enter', purpose: '링크' },
-      { command: 'Esc', purpose: '닫기' },
+      { command: '↑↓', purpose: t('dialog.pick') },
+      { command: 'Enter', purpose: t('link') },
+      { command: 'Esc', purpose: t('common.close') },
     ])
   }
 
   onOpen(): void {
-    super.onOpen()
+    void super.onOpen()
     if (this.initial) {
       this.inputEl.value = this.initial
       this.inputEl.dispatchEvent(new Event('input'))
@@ -84,25 +85,25 @@ export class LinkPicker extends SuggestModal<Item> {
   renderSuggestion(item: Item, el: HTMLElement): void {
     if (item.kind === 'web') {
       el.createDiv({ text: item.url })
-      el.createEl('small', { text: '웹 주소', cls: 'bl-suggest-detail' })
+      el.createEl('small', { text: t('dialog.webAddress'), cls: 'bl-suggest-detail' })
       return
     }
     el.createDiv({ text: title(item.file) })
-    el.createEl('small', { text: `${KIND_NAME[item.kind]} · ${item.file.parent?.path === '/' ? '최상위' : (item.file.parent?.path ?? '')}`, cls: 'bl-suggest-detail' })
+    el.createEl('small', { text: `${KIND_NAME[item.kind]} · ${item.file.parent?.path === '/' ? t('dialog.vaultRoot') : (item.file.parent?.path ?? '')}`, cls: 'bl-suggest-detail' })
   }
 
-  async onChooseSuggestion(item: Item): Promise<void> {
+  onChooseSuggestion(item: Item): void {
     this.chosen = true
     if (item.kind === 'web') return this.done({ link: item.url })
     if (item.kind !== 'board') return this.done({ link: docLink(item.file.path), title: title(item.file) })
-    const id = await boardIdOf(this.app, item.file)
-    this.done(id ? { link: boardLink(id), title: title(item.file) } : null)
+    const file = item.file
+    void boardIdOf(this.app, file).then((id) => this.done(id ? { link: boardLink(id), title: title(file) } : null))
   }
 
   onClose(): void {
     super.onClose()
     // Choosing closes the modal first; only a plain close means "no link".
-    setTimeout(() => {
+    window.setTimeout(() => {
       if (!this.chosen) this.done(null)
     }, 0)
   }
@@ -137,7 +138,7 @@ export class TextPrompt extends Modal {
         submit()
       }
     })
-    setTimeout(() => area.focus(), 0)
+    window.setTimeout(() => area.focus(), 0)
   }
 
   onClose(): void {

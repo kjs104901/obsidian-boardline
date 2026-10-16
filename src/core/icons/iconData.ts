@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+import { loadPref, savePref } from '../platform/prefs'
 // Icon library (Phosphor Icons, MIT): names, categories and path data, loaded on first use.
 
 /** Icon look: duotone in the object's color, solid, or outline. */
@@ -77,24 +79,24 @@ export function loadIconIndex(): Promise<IconMeta[]> {
 
 /** Korean names of the Phosphor categories, in menu order. */
 export const ICON_CATEGORIES: { key: string; label: string }[] = [
-  { key: 'arrows', label: '화살표' },
-  { key: 'system', label: '시스템' },
-  { key: 'office', label: '사무' },
-  { key: 'communications', label: '소통' },
-  { key: 'people', label: '사람' },
-  { key: 'technology & development', label: '기술·개발' },
-  { key: 'design', label: '디자인' },
-  { key: 'editor', label: '글 편집' },
-  { key: 'media', label: '미디어' },
-  { key: 'commerce', label: '쇼핑' },
-  { key: 'finances', label: '금융' },
-  { key: 'maps & travel', label: '지도·여행' },
-  { key: 'health & wellness', label: '건강' },
-  { key: 'nature', label: '자연' },
-  { key: 'weather', label: '날씨' },
-  { key: 'objects', label: '사물' },
-  { key: 'games', label: '게임' },
-  { key: 'brands', label: '브랜드' },
+  { key: 'arrows', get label() { return t('iconCat.arrows') } },
+  { key: 'system', get label() { return t('iconCat.system') } },
+  { key: 'office', get label() { return t('iconCat.office') } },
+  { key: 'communications', get label() { return t('iconCat.communication') } },
+  { key: 'people', get label() { return t('iconCat.people') } },
+  { key: 'technology & development', get label() { return t('iconCat.development') } },
+  { key: 'design', get label() { return t('iconCat.design') } },
+  { key: 'editor', get label() { return t('iconCat.editor') } },
+  { key: 'media', get label() { return t('iconCat.media') } },
+  { key: 'commerce', get label() { return t('iconCat.commerce') } },
+  { key: 'finances', get label() { return t('iconCat.finance') } },
+  { key: 'maps & travel', get label() { return t('iconCat.map') } },
+  { key: 'health & wellness', get label() { return t('iconCat.health') } },
+  { key: 'nature', get label() { return t('iconCat.nature') } },
+  { key: 'weather', get label() { return t('iconCat.weather') } },
+  { key: 'objects', get label() { return t('iconCat.objects') } },
+  { key: 'games', get label() { return t('iconCat.games') } },
+  { key: 'brands', get label() { return t('iconCat.brands') } },
 ]
 
 /** Icons whose name or tags contain every word of `query`, best (name) matches first. */
@@ -121,18 +123,10 @@ export function searchIcons(all: IconMeta[], query: string, limit = 240): IconMe
 const RECENT_KEY = 'boardline.recentIcons'
 
 export function recentIcons(): string[] {
-  try {
-    const list = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
-    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string').slice(0, 10) : []
-  } catch {
-    return []
-  }
+  const list = loadPref(RECENT_KEY)
+  return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string').slice(0, 10) : []
 }
 
 export function rememberIcon(name: string): void {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([name, ...recentIcons().filter((n) => n !== name)].slice(0, 10)))
-  } catch {
-    // Recent icons are a convenience only.
-  }
+  savePref(RECENT_KEY, [name, ...recentIcons().filter((n) => n !== name)].slice(0, 10))
 }

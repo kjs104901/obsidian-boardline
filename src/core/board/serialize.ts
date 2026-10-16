@@ -1,5 +1,6 @@
 import { BoardDocument, type BoardMeta } from './document'
-import { SHAPE_SPECS, TEXT_SIZES, newId, type BoardObject, type Endpoint, type ShapeKind, type TextSize } from './model'
+import { SHAPE_SPECS, TEXT_SIZES, newId, type BoardObject, type Endpoint } from './model'
+import { t } from '../i18n'
 
 export const BOARD_EXT = '.board'
 const FORMAT = 'boardline-board'
@@ -63,11 +64,11 @@ export function parseBoard(text: string): BoardDocument {
   try {
     raw = JSON.parse(text)
   } catch (e) {
-    throw new BoardFormatError(`보드 파일을 읽을 수 없습니다: ${(e as Error).message}`)
+    throw new BoardFormatError(t('file.unreadable', (e as Error).message))
   }
   const f = raw as Partial<BoardFile>
-  if (f?.format !== FORMAT) throw new BoardFormatError('보드 파일 형식이 아닙니다.')
-  if (f.version !== VERSION) throw new BoardFormatError(`지원하지 않는 버전입니다: ${String(f.version)}`)
+  if (f?.format !== FORMAT) throw new BoardFormatError(t('file.notBoard'))
+  if (f.version !== VERSION) throw new BoardFormatError(t('file.badVersion', String(f.version)))
   const meta: BoardMeta = {
     id: String(f.id ?? newId()),
     title: String(f.title ?? ''),
@@ -99,14 +100,15 @@ function isValidEndpoint(e: unknown): e is Endpoint {
 
 function isValidPins(v: unknown): boolean {
   if (v === undefined) return true
-  const at = (v as { at?: unknown } | null)?.at
+  if (typeof v !== 'object' || v === null || !('at' in v)) return false
+  const at = v.at
   return Array.isArray(at) && at.every((e: unknown) => e === null || (typeof e === 'object' && (isNum((e as { x?: unknown }).x) || isNum((e as { y?: unknown }).y))))
 }
 
 function isValidObject(o: unknown): o is BoardObject {
   const v = o as BoardObject
   if (!v || typeof v.id !== 'string' || !isNum(v.z)) return false
-  if (v.type === 'shape') return (v.shape as ShapeKind) in SHAPE_SPECS && [v.x, v.y, v.w, v.h].every(isNum) && (v.stem === undefined || isNum(v.stem)) && (v.src === undefined || typeof v.src === 'string') && (v.angle === undefined || isNum(v.angle)) && (v.icon === undefined || typeof v.icon === 'string') && (v.iconStyle === undefined || ['color', 'fill', 'outline'].includes(v.iconStyle)) && (v.points === undefined || (Array.isArray(v.points) && v.points.every(isNum))) && (v.pen === undefined || v.pen === 'pen' || v.pen === 'marker') && (v.link === undefined || typeof v.link === 'string') && (v.preview === undefined || typeof v.preview === 'object') && (v.cols === undefined || (Array.isArray(v.cols) && v.cols.every(isNum))) && (v.cells === undefined || (Array.isArray(v.cells) && v.cells.every((r) => Array.isArray(r) && r.every((c) => typeof c === 'string')))) && (v.textSize === undefined || TEXT_SIZES.includes(v.textSize as TextSize)) && (v.align === undefined || ['left', 'center', 'right'].includes(v.align as string))
+  if (v.type === 'shape') return (v.shape) in SHAPE_SPECS && [v.x, v.y, v.w, v.h].every(isNum) && (v.stem === undefined || isNum(v.stem)) && (v.src === undefined || typeof v.src === 'string') && (v.angle === undefined || isNum(v.angle)) && (v.icon === undefined || typeof v.icon === 'string') && (v.iconStyle === undefined || ['color', 'fill', 'outline'].includes(v.iconStyle)) && (v.points === undefined || (Array.isArray(v.points) && v.points.every(isNum))) && (v.pen === undefined || v.pen === 'pen' || v.pen === 'marker') && (v.link === undefined || typeof v.link === 'string') && (v.preview === undefined || typeof v.preview === 'object') && (v.cols === undefined || (Array.isArray(v.cols) && v.cols.every(isNum))) && (v.cells === undefined || (Array.isArray(v.cells) && v.cells.every((r) => Array.isArray(r) && r.every((c) => typeof c === 'string')))) && (v.textSize === undefined || TEXT_SIZES.includes(v.textSize)) && (v.align === undefined || ['left', 'center', 'right'].includes(v.align))
   if (v.type === 'connector') return isValidEndpoint(v.from) && isValidEndpoint(v.to) && (v.kind === 'elbow' || v.kind === 'straight' || v.kind === 'curved') && isValidPins(v.pins)
   if (v.type === 'mindmap') return (v.parentId === null || typeof v.parentId === 'string') && [v.x, v.y, v.order].every(isNum) && typeof v.text === 'string'
   return false
@@ -114,7 +116,7 @@ function isValidObject(o: unknown): o is BoardObject {
 
 /** File name for a new board: keeps Korean/Unicode, strips characters Windows forbids. */
 export function boardFileName(title: string): string {
-  const safe = title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || '새 보드'
+  const safe = [...title].filter((ch) => ch >= ' ' && !'<>:"/\\|?*'.includes(ch)).join('').trim() || t('board.newName')
   return safe + BOARD_EXT
 }
 

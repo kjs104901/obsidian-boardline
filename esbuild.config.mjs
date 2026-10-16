@@ -1,5 +1,6 @@
-// Builds the Obsidian plugin: main.js (one CommonJS file with the engine, ELK, icons and React),
-// styles.css (the board UI's styles and the plugin's own) and manifest.json, into dist/.
+// Builds the Obsidian plugin at the repository root, next to manifest.json: main.js (one CommonJS
+// file with the engine, ELK, icons and React) and styles.css (the board UI's styles and the
+// plugin's own). Both are build output, kept out of git and attached to releases.
 //   node esbuild.config.mjs [production] [--watch] [--vault <path>]
 // --vault also copies the files into <vault>/.obsidian/plugins/boardline/ after every build.
 import fs from 'node:fs'
@@ -15,7 +16,7 @@ const production = args.includes('production')
 const watch = args.includes('--watch')
 const vaultAt = args.indexOf('--vault')
 const vault = vaultAt >= 0 ? args[vaultAt + 1] : null
-const out = here('dist')
+const out = here('.')
 
 /**
  * Notices for the third-party code bundled into main.js, read from the installed packages:
@@ -61,7 +62,7 @@ export function scopeBoardCss(css) {
   return css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[{}])([^{}@]+)\{/g, (_, before, selectors) => before + selectors.split(',').map(scopeSelector).join(',') + '{')
 }
 
-/** dist/main.css becomes styles.css together with the plugin's own CSS; copy to the vault. */
+/** main.css becomes styles.css together with the plugin's own CSS; copy to the vault. */
 const finish = {
   name: 'boardline-finish',
   setup(build) {
@@ -70,8 +71,6 @@ const finish = {
       const board = fs.existsSync(path.join(out, 'main.css')) ? scopeBoardCss(fs.readFileSync(path.join(out, 'main.css'), 'utf8')) : ''
       fs.writeFileSync(path.join(out, 'styles.css'), board + '\n' + fs.readFileSync(here('src/plugin.css'), 'utf8'))
       fs.rmSync(path.join(out, 'main.css'), { force: true })
-      fs.copyFileSync(here('manifest.json'), path.join(out, 'manifest.json'))
-      fs.writeFileSync(path.join(out, 'THIRD_PARTY_NOTICES.txt'), NOTICES + '\n')
       if (vault) {
         const dest = path.join(vault, '.obsidian', 'plugins', 'boardline')
         fs.mkdirSync(dest, { recursive: true })

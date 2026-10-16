@@ -36,6 +36,12 @@ export type ShapeKind =
   | 'triangle'
   | 'hexagon'
   | 'cylinder'
+  | 'document'
+  | 'documents'
+  | 'subroutine'
+  | 'manual-input'
+  | 'delay'
+  | 'display'
   | 'cloud'
   | 'star'
   | 'brace'
@@ -62,6 +68,12 @@ export const FLOW_SHAPES: ShapeKind[] = [
   'triangle',
   'hexagon',
   'cylinder',
+  'document',
+  'documents',
+  'subroutine',
+  'manual-input',
+  'delay',
+  'display',
   'brace',
   'cloud',
   'star',
@@ -263,6 +275,12 @@ export const SHAPE_SPECS: Record<ShapeKind, ShapeSpec> = {
   triangle: { w: 160, h: 120, textInsetX: 40 },
   hexagon: { w: 240, h: 80, textInsetX: 30 },
   cylinder: { w: 160, h: 140, textInsetX: 12 },
+  document: { w: 240, h: 80, textInsetX: 12 },
+  documents: { w: 240, h: 100, textInsetX: 22 },
+  subroutine: { w: 240, h: 60, textInsetX: 24 },
+  'manual-input': { w: 240, h: 80, textInsetX: 12 },
+  delay: { w: 200, h: 80, textInsetX: 20 },
+  display: { w: 240, h: 80, textInsetX: 28 },
   cloud: { w: 240, h: 140, textInsetX: 40 },
   star: { w: 160, h: 160, textInsetX: 50 },
   sticky: { w: 200, h: 200, textInsetX: 16 },

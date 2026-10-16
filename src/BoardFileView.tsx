@@ -17,6 +17,7 @@ import type { EditorStatus } from '@boardline/core/engine/editor'
 import { LinkPicker, TextPrompt, fileLink } from './dialogs'
 import { obsidianLinkFetcher } from './linkFetcher'
 import type BoardlinePlugin from './main'
+import { t } from '@boardline/core/i18n'
 
 export const VIEW_TYPE_BOARD = 'boardline-board'
 
@@ -42,11 +43,12 @@ export class BoardFileView extends TextFileView {
   ) {
     super(leaf)
     // While the board has the focus, its keys win over Obsidian's (Ctrl+G is the graph view
-    // elsewhere, Ctrl+0 the app zoom, Ctrl+B / I bold and italic in notes, Ctrl+F / H the note
+    // elsewhere, Ctrl+0 / = / - the app zoom, Ctrl+B / I bold and italic in notes, Ctrl+F / H the note
     // search and replace, Ctrl+Enter and Alt+Enter links): the board handles them itself.
     this.scope = new Scope(this.app.scope)
-    for (const key of ['g', 'G', '0', 'd', 'l', 'e', 'b', 'i', 'f', 'h', 'Enter']) this.scope.register(['Mod'], key, () => true)
+    for (const key of ['g', 'G', '0', '=', '-', 'd', 'l', 'e', 'b', 'i', 'f', 'h', 'Enter']) this.scope.register(['Mod'], key, () => true)
     this.scope.register(['Mod', 'Shift'], 'g', () => true)
+    this.scope.register(['Mod', 'Shift'], '+', () => true)
     this.scope.register(['Alt'], 'Enter', () => true)
   }
 
@@ -55,7 +57,7 @@ export class BoardFileView extends TextFileView {
   }
 
   getDisplayText(): string {
-    return this.file ? titleFromFileName(this.file.name) : '보드'
+    return this.file ? titleFromFileName(this.file.name) : t('common.board')
   }
 
   getIcon(): string {
@@ -64,9 +66,9 @@ export class BoardFileView extends TextFileView {
 
   onload(): void {
     super.onload()
-    this.addAction('download', '내보내기와 가져오기', (evt) => this.showBoardMenu(evt))
-    this.addAction('history', '버전 기록', () => this.controller.current?.toggleHistory())
-    this.addAction('presentation', '발표 (F5)', () => this.controller.current?.startPresenting())
+    this.addAction('download', t('view.exportImport'), (evt) => this.showBoardMenu(evt))
+    this.addAction('history', t('history.title'), () => this.controller.current?.toggleHistory())
+    this.addAction('presentation', t('view.presentKey'), () => this.controller.current?.startPresenting())
     this.contentEl.addClass('bl-view')
   }
 
@@ -105,7 +107,7 @@ export class BoardFileView extends TextFileView {
     const editor = this.controller.current?.editor
     if (!this.doc || !editor) return false
     const changed = relinkObjects(this.doc.ordered(), from, to)
-    if (changed.length) editor.updateObjects(changed, '옮긴 파일로 링크 고치기')
+    if (changed.length) editor.updateObjects(changed, t('undo.relink'))
     return true
   }
 
@@ -123,7 +125,7 @@ export class BoardFileView extends TextFileView {
       try {
         const next = parseBoard(data)
         this.applying = true
-        editor.replaceAll(next.ordered(), '다른 곳에서 바뀐 내용')
+        editor.replaceAll(next.ordered(), t('undo.external'))
         this.doc.meta.rev = next.meta.rev
         this.doc.meta.thumbnail = next.meta.thumbnail
         this.doc.meta.slides = next.meta.slides
@@ -149,7 +151,7 @@ export class BoardFileView extends TextFileView {
       doc = parseBoard(data)
     } catch (e) {
       this.contentEl.empty()
-      this.contentEl.createDiv({ cls: 'bl-load-error', text: `보드를 열 수 없습니다: ${e instanceof Error ? e.message : String(e)}` })
+      this.contentEl.createDiv({ cls: 'bl-load-error', text: t('board.cantOpen', e instanceof Error ? e.message : String(e)) })
       return
     }
     if (this.file) doc.meta.title = titleFromFileName(this.file.name)
@@ -198,7 +200,7 @@ export class BoardFileView extends TextFileView {
     try {
       await saveSnapshot(this.plugin.storage, '', boardId, text)
     } catch (e) {
-      console.error('Boardline: 버전 기록 저장 실패', e)
+      console.error(t('history.saveFailed'), e)
     }
   }
 
@@ -248,7 +250,7 @@ export class BoardFileView extends TextFileView {
         const base = normalizePath(folder === '/' ? name : `${folder}/${name}`)
         let path = `${base}.md`
         for (let i = 2; app.vault.getAbstractFileByPath(path); i++) path = `${base} ${i}.md`
-        const source = this.file ? `[[${this.file.path}|${this.file.basename}]] 보드에서 옮겨 적음\n\n` : ''
+        const source = this.file ? t('export.noteSource', this.file.path, this.file.basename) : ''
         const note = await app.vault.create(path, source + markdown)
         await app.workspace.getLeaf('split', 'vertical').openFile(note)
         return true
@@ -263,7 +265,7 @@ export class BoardFileView extends TextFileView {
         return true
       },
       boardFile: async (id) => (await plugin.findBoard(id))?.path ?? null,
-      pickFiles: () => new Promise((resolve) => new LinkPicker(app, '파일 넣기', undefined, (pick) => resolve(pick ? [pick.link] : null), true).open()),
+      pickFiles: () => new Promise((resolve) => new LinkPicker(app, t('file.add'), undefined, (pick) => resolve(pick ? [pick.link] : null), true).open()),
       watchFiles: (changed) => {
         // Edits arrive keystroke by keystroke: redraw once they settle.
         let timer = 0
@@ -303,7 +305,7 @@ export class BoardFileView extends TextFileView {
       saveExport: async (name, _format, bytes) => {
         const path = await app.fileManager.getAvailablePathForAttachment(name, this.file?.path ?? '')
         await plugin.storage.writeAsset('', path, bytes)
-        new Notice(`${path}에 저장했습니다`)
+        new Notice(t('export.savedTo', path))
         return false
       },
       setFullscreen: async (on, element) => {

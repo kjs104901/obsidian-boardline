@@ -13,7 +13,7 @@ describe('board as a note', () => {
     const tasks = shape('sticky', 0, 450, { text: '- [ ] 할 일', id: 'k' })
     const line = { ...createConnector({ objectId: 'b' }, { objectId: 'a' }, 0), label: '다음' }
     const md = boardToMarkdown([loose, a, section, b, tasks, line] as BoardObject[])
-    expect(md).toBe('## 아이디어\n\n- **첫째**\n  - 세부\n- 둘째\n- [ ] 할 일\n\n마무리 문단\n\n## 연결\n\n- 첫째 → 둘째: 다음\n')
+    expect(md).toBe('## 아이디어\n\n- **첫째**\n  - 세부\n- 둘째\n- [ ] 할 일\n\n마무리 문단\n\n## Connections\n\n- 첫째 → 둘째: 다음\n')
   })
 
   it('writes mind maps as nested lists, tables as tables, files as links', () => {

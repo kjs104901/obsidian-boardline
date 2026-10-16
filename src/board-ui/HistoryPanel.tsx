@@ -5,6 +5,7 @@ import { listSnapshots, type Snapshot } from '@boardline/core/board/history'
 import type { BoardObject } from '@boardline/core/board/model'
 import { parseBoard } from '@boardline/core/board/serialize'
 import { CloseIcon } from './icons'
+import { language, t } from '@boardline/core/i18n'
 
 interface Props {
   storage: WorkspaceStorage
@@ -23,15 +24,20 @@ interface Preview {
   image: string | null
 }
 
-const dateFormat = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit', second: '2-digit' })
+/** Dates in the interface language (made on first use, once the language is set). */
+let dateFormat: Intl.DateTimeFormat | null = null
+function formatDate(time: Date): string {
+  dateFormat ??= new Intl.DateTimeFormat(language(), { month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  return dateFormat.format(time)
+}
 
 function relative(time: Date, now: number): string {
   const min = Math.round((now - time.getTime()) / 60000)
-  if (min < 1) return '방금'
-  if (min < 60) return `${min}분 전`
+  if (min < 1) return t('time.justNow')
+  if (min < 60) return t('time.minutesAgo', min)
   const h = Math.round(min / 60)
-  if (h < 24) return `${h}시간 전`
-  return `${Math.round(h / 24)}일 전`
+  if (h < 24) return t('time.hoursAgo', h)
+  return t('time.daysAgo', Math.round(h / 24))
 }
 
 /** Side panel listing saved versions of the board, with a preview and restore. */
@@ -57,7 +63,7 @@ export function HistoryPanel({ storage, root, boardId, editor, preserveCurrent, 
       const image = svg ? URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })) : null
       setPreview({ snapshot, objects, image })
     } catch (e) {
-      setError(`이 버전을 읽을 수 없습니다: ${String(e)}`)
+      setError(t('history.unreadable', String(e)))
     }
   }
 
@@ -66,10 +72,10 @@ export function HistoryPanel({ storage, root, boardId, editor, preserveCurrent, 
     setBusy(true)
     try {
       await preserveCurrent()
-      editor.replaceAll(preview.objects, '버전 복원')
+      editor.replaceAll(preview.objects, t('history.restoreUndo'))
       onClose()
     } catch (e) {
-      setError(`복원하지 못했습니다: ${String(e)}`)
+      setError(t('history.restoreFailed', String(e)))
     } finally {
       setBusy(false)
     }
@@ -79,26 +85,26 @@ export function HistoryPanel({ storage, root, boardId, editor, preserveCurrent, 
   return (
     <aside className="bl-history-panel" onPointerDown={(e) => e.stopPropagation()}>
       <header>
-        <span>버전 기록</span>
-        <button title="닫기" onClick={onClose}>
+        <span>{t('history.title')}</span>
+        <button title={t('common.close')} onClick={onClose}>
           <CloseIcon />
         </button>
       </header>
       {preview && (
         <div className="bl-history-preview">
-          {preview.image ? <img src={preview.image} alt="미리보기" /> : <div className="bl-history-empty">빈 보드</div>}
+          {preview.image ? <img src={preview.image} alt={t('history.preview')} /> : <div className="bl-history-empty">{t('common.emptyBoard')}</div>}
           <button className="bl-primary" disabled={busy} onClick={() => void restore()}>
-            이 버전으로 복원
+            {t('history.restore')}
           </button>
         </div>
       )}
       {error && <div className="bl-history-error">{error}</div>}
       <div className="bl-history-list">
-        {snapshots === null && <div className="bl-history-empty">읽는 중…</div>}
-        {snapshots?.length === 0 && <div className="bl-history-empty">아직 저장된 버전이 없습니다. 편집하면 편집 전 상태와 10분마다의 상태가 남습니다.</div>}
+        {snapshots === null && <div className="bl-history-empty">{t('common.reading')}</div>}
+        {snapshots?.length === 0 && <div className="bl-history-empty">{t('history.empty')}</div>}
         {snapshots?.map((s) => (
           <button key={s.path} className={'bl-history-item' + (preview?.snapshot.path === s.path ? ' active' : '')} onClick={() => void open(s)}>
-            <span>{dateFormat.format(s.time)}</span>
+            <span>{formatDate(s.time)}</span>
             <span className="bl-history-relative">{relative(s.time, now)}</span>
           </button>
         ))}

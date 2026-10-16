@@ -8,6 +8,7 @@ import type { ShapeObject } from '../board/model'
 import type { Rect } from './geometry'
 import type { RichLayout } from './richLayout'
 import { SECTION_TITLE_SIZE, richText, type MeasureAt } from './textLayout'
+import { t } from '../i18n'
 
 export interface NoteView {
   state: 'loading' | 'ready' | 'missing'
@@ -42,7 +43,7 @@ const fileName = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace
 /** The file's name from its link (before it is read; a board link's is its title, read later). */
 export function noteName(link: string | undefined): string {
   const target = parseLink(link ?? '')
-  return target?.kind === 'board' ? '보드' : fileName(target?.kind === 'doc' ? target.path : (link ?? ''))
+  return target?.kind === 'board' ? t('common.board') : fileName(target?.kind === 'doc' ? target.path : (link ?? ''))
 }
 
 /** Where the name goes above the card. */
@@ -65,7 +66,7 @@ export interface NoteDrawing {
 }
 
 export function noteDrawing(o: ShapeObject, view: NoteView | undefined, measureAt: MeasureAt, scroll = 0): NoteDrawing {
-  const t = noteTitleBox(o)
+  const titleBox = noteTitleBox(o)
   const inner = { x: o.x + NOTE_PADDING, y: o.y + NOTE_PADDING / 2, w: Math.max(1, o.w - 2 * NOTE_PADDING), h: Math.max(1, o.h - NOTE_PADDING) }
   const image = view?.state === 'ready' ? view.image : undefined
   const ready = view?.state === 'ready' && (!!image || view.text.trim() !== '')
@@ -81,11 +82,11 @@ export function noteDrawing(o: ShapeObject, view: NoteView | undefined, measureA
   }
   const maxScroll = rich ? Math.max(0, rich.height - inner.h + NOTE_PADDING / 2) : 0
   return {
-    title: { text: view?.title || noteName(o.link), x: t.x, y: t.y + t.h / 2, size: SECTION_TITLE_SIZE },
+    title: { text: view?.title || noteName(o.link), x: titleBox.x, y: titleBox.y + titleBox.h / 2, size: SECTION_TITLE_SIZE },
     picture,
     inner,
     rich,
-    message: !view || view.state === 'loading' ? '불러오는 중…' : view.state === 'missing' ? '파일을 찾을 수 없습니다' : ready ? null : '비어 있음',
+    message: !view || view.state === 'loading' ? t('common.loading') : view.state === 'missing' ? t('note.missing') : ready ? null : t('note.empty'),
     scroll: Math.min(Math.max(0, scroll), maxScroll),
     maxScroll,
   }
@@ -102,8 +103,8 @@ async function decode(png: Uint8Array): Promise<NoteView['image']> {
   const blob = new Blob([png as BlobPart], { type: 'image/png' })
   const url = await new Promise<string>((resolve, reject) => {
     const r = new FileReader()
-    r.onload = () => resolve(String(r.result))
-    r.onerror = () => reject(r.error)
+    r.onload = () => resolve(r.result as string)
+    r.onerror = () => reject(r.error ?? new Error('The picture could not be read'))
     r.readAsDataURL(blob)
   })
   const img = new Image()

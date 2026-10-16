@@ -12,6 +12,7 @@ src/*.ts(x)     Obsidian 셸: 플러그인, .board 보기, Vault 저장소, 대�
 
 - **보드의 기능과 모양은 `core`와 `board-ui`에서 고친다.** 도형, 연결선, 도구 막대, 선택 막대, 패널, 단축키, 색, 터치 동작이 여기 있다.
 - **셸은 Obsidian과 닿는 일만 맡는다.** 파일 읽고 쓰기(Vault API), 링크·파일 고르기(`SuggestModal`), 글 입력(`Modal`), 머리글 버튼과 메뉴(`Menu`), 노트 속 임베드, 파일 옮김에 따른 링크 고치기, 테마, 설정.
+- **화면 문구는 `t(키)`로 쓴다.** 문구 표는 `src/core/i18n/`에 있고(영어 `en.ts`가 기준이자 키 목록), 셸이 켜질 때 Obsidian 언어로 `setLanguage()`를 부른다. 모듈을 읽을 때 만들어지는 표(도형 이름, 색 이름, 메뉴 항목)는 `get label() { return t(…) }`처럼 읽을 때 문구를 고른다.
 - **의존 방향은 한쪽이다.** `core` ← `board-ui` ← 셸. `core`는 React·Obsidian을 모르고, `board-ui`는 Obsidian과 셸을 모른다(`scripts/architecture.test.ts`가 검사한다). 두 층은 `@boardline/core/…`, `@boardline/board-ui/…`로 가져온다(esbuild·Vitest·TypeScript에 같은 별칭).
 
 ## 셸이 보드 화면에 주는 것
@@ -49,7 +50,8 @@ src/*.ts(x)     Obsidian 셸: 플러그인, .board 보기, Vault 저장소, 대�
 
 | | 명령 |
 |---|---|
-| 빌드 | `npm run build` → `dist/` |
+| 빌드 | `npm run build` → 저장소 최상위에 `main.js`, `styles.css` |
+| Obsidian 리뷰 규칙 | `npm run lint` |
 | 개발 | `npm run dev -- --vault <보관함>` (고칠 때마다 다시 만들어 `<보관함>/.obsidian/plugins/boardline/`에 넣음) |
 | 테스트 | `npm test` |
 | 타입 검사 | `npm run typecheck` |

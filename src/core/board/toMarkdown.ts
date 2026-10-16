@@ -6,6 +6,7 @@
 import { lineStart, plainText } from '../engine/richText'
 import { parseLink } from './links'
 import { endpointObjectId, isConnector, isMindmap, isRichKind, isShape, type BoardObject, type ConnectorObject, type MindmapNode, type ShapeObject } from './model'
+import { t } from '../i18n'
 
 interface Block {
   text: string
@@ -65,7 +66,7 @@ function shapeBlock(o: ShapeObject): Block | null {
     default: {
       const text = o.text.trim()
       if (!text) return null
-      const web = o.link && parseLink(o.link)?.kind === 'web' ? ` ([링크](${o.link}))` : ''
+      const web = o.link && parseLink(o.link)?.kind === 'web' ? t('md.linkSuffix', o.link) : ''
       // Text that is already a list (or a heading) stays as it is written.
       const start = lineStart(text.split('\n')[0]).kind
       if (start === 'heading') return { text: text + web, list: false }
@@ -121,14 +122,14 @@ export function boardToMarkdown(objects: BoardObject[]): string {
   const render = (home: string | null, level: number): Block[] =>
     readingOrder(entries.filter((e) => e.home === home)).flatMap((e) => {
       if (!e.section) return [e.block!]
-      const title = firstLine(e.section.text) || '섹션'
+      const title = firstLine(e.section.text) || t('kind.section')
       return [{ text: `${'#'.repeat(Math.min(6, level))} ${title}`, list: false }, ...render(e.section.id, level + 1)]
     })
   const blocks = render(null, 2)
 
   // What leads to what.
   const named = new Map<string, string>()
-  for (const s of shapes) named.set(s.id, firstLine(isRichKind(s.shape) ? plainText(s.text) : s.text) || firstLine(s.link ?? '') || '(빈 도형)')
+  for (const s of shapes) named.set(s.id, firstLine(isRichKind(s.shape) ? plainText(s.text) : s.text) || firstLine(s.link ?? '') || t('md.emptyShape'))
   for (const n of nodes) named.set(n.id, firstLine(n.text) || '…')
   const lines = objects.filter(isConnector).flatMap((c: ConnectorObject) => {
     const from = endpointObjectId(c.from)
@@ -140,6 +141,6 @@ export function boardToMarkdown(objects: BoardObject[]): string {
     const arrow = both ? '↔' : c.startCap === 'none' && c.endCap === 'none' ? '—' : '→'
     return [`- ${named.get(a)} ${arrow} ${named.get(b)}${c.label.trim() ? `: ${firstLine(c.label)}` : ''}`]
   })
-  if (lines.length) blocks.push({ text: '## 연결', list: false }, { text: lines.join('\n'), list: true })
+  if (lines.length) blocks.push({ text: t('md.connections'), list: false }, { text: lines.join('\n'), list: true })
   return joinBlocks(blocks).trim() + '\n'
 }

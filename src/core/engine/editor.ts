@@ -123,7 +123,8 @@ import {
   type ResizeHandle,
 } from './renderer'
 import { UNFILLED, shapePath } from './shapes'
-import { nearestBorder, positionOn } from './outline'
+import { borderPoint, nearestBorder, positionOn } from './outline'
+import { shortcutKey } from './keys'
 import { snapMove, snapPoint, type Guide, type SnapMode, type SnapOptions } from './snapping'
 import {
   FONT_FAMILY,
@@ -146,6 +147,7 @@ import { boardToMarkdown } from '../board/toMarkdown'
 import { NoteCache, noteDrawing, type NoteReader } from './noteCard'
 import { hasMarkAll, setMarkAll, type MarkName } from './richText'
 import { MAX_ZOOM, Viewport, pinchView, type ViewportState } from './viewport'
+import { t } from '../i18n'
 
 /** `icon` names the icon a shape tool for icon objects places. */
 export type Tool =
@@ -322,7 +324,7 @@ interface TextEditing {
   cell?: Cell
 }
 
-const TEXT_MARK_LABEL: Record<MarkName, string> = { bold: '굵게', italic: '기울임', strike: '취소선', highlight: '강조', code: '코드' }
+const TEXT_MARK_LABEL: Record<MarkName, string> = { get bold() { return t('mark.bold') }, get italic() { return t('mark.italic') }, get strike() { return t('mark.strike') }, get highlight() { return t('mark.highlight') }, get code() { return t('mark.code') } }
 
 /** Offset of each successive paste/duplicate (two grid steps). */
 const PASTE_STEP = GRID * 2
@@ -523,7 +525,7 @@ export class BoardEditor {
 
   destroy(): void {
     this.commitEditing()
-    cancelAnimationFrame(this.frame)
+    window.cancelAnimationFrame(this.frame)
     for (const d of this.disposers) d()
     this.images.dispose()
     this.canvas.remove()
@@ -553,8 +555,13 @@ export class BoardEditor {
       this.selection.clear()
       this.requestRender()
     }
-    this.canvas.style.cursor = this.toolCursor()
+    this.setCursor(this.toolCursor())
     this.emitStatus()
+  }
+
+  /** The pointer's look over the board, which follows what is under it and the tool. */
+  private setCursor(cursor: string): void {
+    this.canvas.style.cursor = cursor
   }
 
   private toolCursor(): string {
@@ -581,7 +588,7 @@ export class BoardEditor {
       this.hoverDot = null
       this.setTool({ kind: 'select' })
     }
-    this.canvas.style.cursor = this.toolCursor()
+    this.setCursor(this.toolCursor())
     this.requestRender()
     this.emitStatus()
   }
@@ -624,7 +631,7 @@ export class BoardEditor {
       .filter((o) => !o.locked)
       .map(deleteOp)
     for (const op of ops) this.selection.delete(op.id)
-    this.commit('삭제', ops)
+    this.commit(t('edit.delete'), ops)
   }
 
   // ---- text style ---------------------------------------------------------------
@@ -684,7 +691,7 @@ export class BoardEditor {
 
   /** One text size step bigger (1) or smaller (-1). */
   stepTextSize(dir: 1 | -1): void {
-    this.restyleText('글자 크기', (o) => {
+    this.restyleText(t('text.size'), (o) => {
       const i = Math.min(TEXT_SIZES.length - 1, Math.max(0, TEXT_SIZES.indexOf(o.textSize ?? 'm') + dir))
       const { textSize: _old, ...rest } = o
       return TEXT_SIZES[i] === 'm' ? rest : { ...rest, textSize: TEXT_SIZES[i] }
@@ -692,14 +699,14 @@ export class BoardEditor {
   }
 
   setTextSize(size: TextSize): void {
-    this.restyleText('글자 크기', (o) => {
+    this.restyleText(t('text.size'), (o) => {
       const { textSize: _old, ...rest } = o
       return size === 'm' ? rest : { ...rest, textSize: size }
     })
   }
 
   setTextAlign(align: TextAlign): void {
-    this.restyleText('글자 정렬', (o) => ({ ...o, align }))
+    this.restyleText(t('undo.textAlign'), (o) => ({ ...o, align }))
   }
 
   /** Bullets, numbers or task boxes in front of every line, taken off again when all lines have them. */
@@ -714,7 +721,7 @@ export class BoardEditor {
       return
     }
     if (this.textStyled().length === 0) return
-    this.updateSelected(kind === 'bullet' ? '글머리 기호' : kind === 'number' ? '번호 매기기' : '할 일 목록', (o) => (hasTextStyle(o) ? autosizeShape({ ...o, text: toggleListText(o.text, kind) }, measureAt) : o))
+    this.updateSelected(kind === 'bullet' ? t('text.bullets') : kind === 'number' ? t('text.numbers') : t('text.tasks'), (o) => (hasTextStyle(o) ? autosizeShape({ ...o, text: toggleListText(o.text, kind) }, measureAt) : o))
   }
 
   /** Selected mind map nodes and labeled lines (their words take marks; not while typing). */
@@ -768,7 +775,7 @@ export class BoardEditor {
       const r = cell.range
       e.clipboardData?.setData('text/plain', gridText(tableCells(cell.table).slice(r.r0, r.r1 + 1).map((row) => row.slice(r.c0, r.c1 + 1))))
       e.preventDefault()
-      if (cut && !this.readOnly && !cell.table.locked) this.commit('칸 잘라내기', [updateOp(cell.table, autosizeTable(clearCells(cell.table, r), measureAt))])
+      if (cut && !this.readOnly && !cell.table.locked) this.commit(t('undo.cutCells'), [updateOp(cell.table, autosizeTable(clearCells(cell.table, r), measureAt))])
       return
     }
     const payload = copyObjects(this.selection, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id))
@@ -800,7 +807,7 @@ export class BoardEditor {
     const raw = data.getData(CLIPBOARD_MIME)
     let payload: ClipboardPayload | null = null
     try {
-      const parsed = raw ? JSON.parse(raw) : null
+      const parsed: unknown = raw ? JSON.parse(raw) : null
       if (isClipboardPayload(parsed)) payload = parsed
     } catch {
       payload = null
@@ -816,7 +823,7 @@ export class BoardEditor {
     if (payload) {
       const key = raw || clipboard?.text || ''
       lastPaste = lastPaste?.key === key ? { key, count: lastPaste.count + 1 } : { key, count: 1 }
-      this.insertCopies(payload, lastPaste.count * PASTE_STEP, '붙여넣기')
+      this.insertCopies(payload, lastPaste.count * PASTE_STEP, t('edit.paste'))
       return
     }
     const files = [...data.files].filter(isImageFile)
@@ -826,7 +833,7 @@ export class BoardEditor {
     }
     const pasted = text.trim()
     if (mermaidKind(pasted)) {
-      void this.importMermaid(pasted).then((ok) => this.opts.onNotice?.(ok ? 'Mermaid에서 가져왔습니다' : 'Mermaid를 읽지 못했습니다'))
+      void this.importMermaid(pasted).then((ok) => this.opts.onNotice?.(ok ? t('mermaid.imported') : t('mermaid.failed')))
       return
     }
     const grid = parseGrid(text)
@@ -866,7 +873,7 @@ export class BoardEditor {
       const box = unionRects(shapes)
       const dx = box ? snap(at.x - (box.x + box.w / 2)) : PASTE_STEP
       const dy = box ? snap(at.y - (box.y + box.h / 2)) : PASTE_STEP
-      this.insertPayload(clipboard.payload, dx, dy, '붙여넣기')
+      this.insertPayload(clipboard.payload, dx, dy, t('edit.paste'))
       return true
     }
     const pasted = text.trim()
@@ -910,7 +917,7 @@ export class BoardEditor {
   setCellColor(color: ColorKey): boolean {
     const sel = this.tableAndRange()
     if (!sel?.picked) return false
-    this.commit('칸 색', [updateOp(sel.t, setCellColors(sel.t, sel.range, color))])
+    this.commit(t('table.cellColor'), [updateOp(sel.t, setCellColors(sel.t, sel.range, color))])
     return true
   }
 
@@ -919,13 +926,13 @@ export class BoardEditor {
     const sel = this.tableAndRange()
     if (!sel) return
     const cols = Array.from({ length: sel.range.c1 - sel.range.c0 + 1 }, (_, i) => sel.range.c0 + i)
-    this.commit('칸 정렬', [updateOp(sel.t, autosizeTable(setColAligns(sel.t, cols, align), measureAt))])
+    this.commit(t('undo.cellAlign'), [updateOp(sel.t, autosizeTable(setColAligns(sel.t, cols, align), measureAt))])
   }
 
   private pasteIntoCells(cell: Cell & { table: ShapeObject; range: CellRange }, text: string): void {
     const grid = parseGrid(text, true) ?? [[text.replace(/\n+$/, '')]]
     const next = pasteCells(cell.table, { row: cell.range.r0, col: cell.range.c0 }, grid)
-    this.commit('칸에 붙여넣기', [updateOp(cell.table, autosizeTable(next, measureAt))])
+    this.commit(t('undo.pasteCells'), [updateOp(cell.table, autosizeTable(next, measureAt))])
     this.requestRender()
     this.emitStatus()
   }
@@ -940,7 +947,7 @@ export class BoardEditor {
       measureAt,
     )
     const table = { ...sized, x: snap(at.x - sized.w / 2), y: snap(at.y - sized.h / 2) }
-    this.commit('표 붙여넣기', [createOp(table)])
+    this.commit(t('undo.pasteTable'), [createOp(table)])
     this.selection = new Set([table.id])
     this.activeCell = { id: table.id, row: 0, col: 0 }
     this.afterSelectionChange()
@@ -958,7 +965,7 @@ export class BoardEditor {
     const spec = SHAPE_SPECS[kind]
     let shape = withDefaultStyle(createShape(kind, snap(at.x - spec.w / 2), snap(at.y - spec.h / 2), this.doc.maxZ() + 1))
     if (isContainer(shape)) shape = { ...shape, z: Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1 }
-    this.commit('도형 추가', [createOp(shape)])
+    this.commit(t('undo.addShape'), [createOp(shape)])
     this.selection = new Set([shape.id])
     if (shape.shape === 'table') {
       this.activeCell = { id: shape.id, row: 0, col: 0 }
@@ -977,7 +984,7 @@ export class BoardEditor {
     const base = { ...withDefaultStyle(createShape('text', 0, 0, this.doc.maxZ() + 1)), text: text.replace(/\r\n/g, '\n').trimEnd() }
     const sized = autosizeShape(base, measureAt)
     const shape = { ...sized, x: snap(at.x - sized.w / 2), y: snap(at.y - sized.h / 2) }
-    this.commit('텍스트 붙여넣기', [createOp(shape)])
+    this.commit(t('undo.pasteText'), [createOp(shape)])
     this.selection = new Set([shape.id])
     this.afterSelectionChange()
   }
@@ -998,7 +1005,7 @@ export class BoardEditor {
       const shape = createShape('image', left, snap(at.y - h / 2), this.doc.maxZ() + 1 + i, { w, h })
       return { ...shape, src: img.src }
     })
-    this.commit('이미지 추가', shapes.map(createOp))
+    this.commit(t('undo.addImage'), shapes.map(createOp))
     this.selection = new Set(shapes.map((s) => s.id))
     this.afterSelectionChange()
   }
@@ -1042,7 +1049,7 @@ export class BoardEditor {
 
   duplicateSelection(): void {
     if (this.selection.size === 0) return
-    this.insertCopies(copyObjects(this.selection, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id)), PASTE_STEP, '복제')
+    this.insertCopies(copyObjects(this.selection, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id)), PASTE_STEP, t('edit.duplicate'))
   }
 
   private insertCopies(payload: ClipboardPayload, offset: number, label: string): void {
@@ -1053,7 +1060,7 @@ export class BoardEditor {
     this.commitEditing()
     const objects = pasteObjects(payload, dx, dy, this.doc.maxZ() + 1).map((o) => {
       const { locked: _locked, ...rest } = o
-      return rest as BoardObject
+      return rest
     })
     this.commit(label, objects.map(createOp))
     this.selection = new Set(objects.map((o) => o.id))
@@ -1220,7 +1227,7 @@ export class BoardEditor {
 
   private requestRender(): void {
     if (this.frame) return
-    this.frame = requestAnimationFrame(() => {
+    this.frame = window.requestAnimationFrame(() => {
       this.frame = 0
       this.renderNow()
     })
@@ -1472,9 +1479,10 @@ export class BoardEditor {
   /**
    * What a dragged line end at `p` joins: a side's middle near its dot, a spot along a side
    * near the outline (inside the shape or just outside it; on the grid while snapping), the
-   * shape itself elsewhere inside it (the router picks the side), or nothing.
+   * shape itself elsewhere inside it (the router picks the side), or nothing. Back on the shape
+   * the other end is pinned to, it makes a loop: another dot, or another spot on the outline.
    */
-  private endTarget(p: Point, otherId: string | null, otherSide: Side | null): { id: string; side: Side | null; at: number | null } | null {
+  private endTarget(p: Point, otherId: string | null, otherSide: Side | null, otherAt: number | null): { id: string; side: Side | null; at: number | null } | null {
     const r = (DOT_HOVER_RADIUS + 6) / this.viewport.zoom
     // The closest dot in reach; on a small shape the middle can be closer still, which leaves
     // the side to the router.
@@ -1494,6 +1502,7 @@ export class BoardEditor {
       const at = Math.round(positionOn(o, b.side, { ...p, [axis]: this.gridSnap(p[axis]) }, PIN_CORNER_MARGIN) * 1e4) / 1e4
       return { side: b.side, at: at === 0.5 ? null : at }
     }
+    const spot = (o: ShapeObject, side: Side, at: number | null) => (at === null ? sidePoint(o, side) : borderPoint(o, side, at))
     const pinned = (o: ShapeObject) => {
       const side = near(o, null)
       if (side) return { id: o.id, side, at: null }
@@ -1504,6 +1513,8 @@ export class BoardEditor {
     if (isShape(self) && otherSide && !isContainer(self)) {
       const side = near(self, otherSide)
       if (side) return { id: self.id, side, at: null }
+      const border = onBorder(self)
+      if (border && distance(spot(self, border.side, border.at), spot(self, otherSide, otherAt)) > r) return { id: self.id, ...border }
     }
     const id = this.hitShape(p, otherId ?? '')
     const target = id ? this.lookup(id) : undefined
@@ -1687,19 +1698,19 @@ export class BoardEditor {
 
     if (e.button === 1 || (e.button === 0 && this.spaceHeld)) {
       this.interaction = { kind: 'pan', last: sp }
-      this.canvas.style.cursor = 'grabbing'
+      this.setCursor('grabbing')
       return
     }
     if (e.button !== 0) return
     if (this.readOnly) {
       this.interaction = { kind: 'pan', last: sp, click: sp }
-      this.canvas.style.cursor = 'grabbing'
+      this.setCursor('grabbing')
       return
     }
 
     if (this.tool.kind === 'hand') {
       this.interaction = { kind: 'pan', last: sp }
-      this.canvas.style.cursor = 'grabbing'
+      this.setCursor('grabbing')
       return
     }
     if (this.cropping) {
@@ -1955,7 +1966,7 @@ export class BoardEditor {
         const pos = Math.max(0.05, Math.min(0.95, lengthAtPoint(g.points, bp) / len))
         const { labelPos: _old, ...rest } = it.original
         this.preview.set(it.original.id, Math.abs(pos - 0.5) < 0.03 ? rest : { ...rest, labelPos: Math.round(pos * 1000) / 1000 })
-        this.canvas.style.cursor = 'grabbing'
+        this.setCursor('grabbing')
         this.requestRender()
         return
       }
@@ -1964,7 +1975,7 @@ export class BoardEditor {
         if (!isShape(t)) return
         if (distance(sp, it.downScreen) >= DRAG_THRESHOLD) it.dragging = true
         it.slot = this.tableMoveSlot(t, it.what, bp)
-        this.canvas.style.cursor = 'grabbing'
+        this.setCursor('grabbing')
         this.requestRender()
         return
       }
@@ -2009,11 +2020,11 @@ export class BoardEditor {
       case 'segment':
         this.updateSegment(it, bp, e)
         return
-      case 'connect':
+      case 'connect': {
         if (!it.dragging && distance(sp, it.downScreen) < DRAG_THRESHOLD) return
         it.dragging = true
         this.hoverDot = null
-        const target = this.endTarget(bp, it.sourceId, it.side)
+        const target = this.endTarget(bp, it.sourceId, it.side, null)
         it.targetId = target?.id ?? null
         it.targetSide = target?.side ?? null
         it.targetAt = target?.at ?? null
@@ -2027,6 +2038,7 @@ export class BoardEditor {
         }
         this.requestRender()
         return
+      }
     }
   }
 
@@ -2041,19 +2053,19 @@ export class BoardEditor {
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId)
     switch (it.kind) {
       case 'pan':
-        this.canvas.style.cursor = this.spaceHeld ? 'grab' : this.toolCursor()
+        this.setCursor(this.spaceHeld ? 'grab' : this.toolCursor())
         if (it.click && distance(it.last, it.click) < DRAG_THRESHOLD) this.followLinkAt(this.viewport.toBoard(it.click.x, it.click.y))
         break
       case 'draw': {
         // A stroke keeps the shape of the drag within half a screen pixel.
         const points = simplify(it.points, 0.5 / this.viewport.zoom)
         const stroke = strokeShape(points, it.pen, this.penColors[it.pen], this.doc.maxZ() + 1)
-        this.commit(it.pen === 'marker' ? '형광펜' : '펜', [createOp(stroke)])
+        this.commit(it.pen === 'marker' ? t('undo.marker') : t('undo.pen'), [createOp(stroke)])
         break
       }
       case 'erase': {
         const ops = [...it.hits].map((id) => this.doc.get(id)).filter(isDefined).map(deleteOp)
-        this.commit('지우기', ops)
+        this.commit(t('undo.erase'), ops)
         break
       }
       case 'lasso':
@@ -2069,10 +2081,10 @@ export class BoardEditor {
         break
       case 'move':
         this.reorderActors(it)
-        this.commitPreview('이동', it.originals, it.copies)
+        this.commitPreview(t('undo.move'), it.originals, it.copies)
         break
       case 'resize':
-        if (it.dragging) this.commitPreview('크기 조절', new Map([[it.original.id, it.original]]))
+        if (it.dragging) this.commitPreview(t('undo.resize'), new Map([[it.original.id, it.original]]))
         break
       case 'create':
         this.finishCreate(it)
@@ -2086,7 +2098,7 @@ export class BoardEditor {
         } else this.finishConnect(it)
         break
       case 'endpoint':
-        if (it.dragging) this.commitPreview('연결선 끝 옮기기', new Map([[it.original.id, it.original]]))
+        if (it.dragging) this.commitPreview(t('undo.moveLineEnd'), new Map([[it.original.id, it.original]]))
         break
       case 'addActor':
         this.addActorBeside(it.actorId, it.side)
@@ -2098,8 +2110,8 @@ export class BoardEditor {
         this.emitStatus()
         break
       case 'labelMove':
-        if (it.dragging) this.commitPreview('라벨 옮기기', new Map([[it.original.id, it.original]]))
-        this.canvas.style.cursor = ''
+        if (it.dragging) this.commitPreview(t('label.move'), new Map([[it.original.id, it.original]]))
+        this.setCursor('')
         break
       case 'tableMove': {
         // The gap after the dragged one is where it already is.
@@ -2114,23 +2126,23 @@ export class BoardEditor {
             this.emitStatus()
           }
         }
-        this.canvas.style.cursor = ''
+        this.setCursor('')
         break
       }
       case 'colResize':
-        this.commitPreview('열 너비', new Map([[it.original.id, it.original]]))
+        this.commitPreview(t('undo.colWidth'), new Map([[it.original.id, it.original]]))
         break
       case 'reparent':
         this.finishReparent(it)
         break
       case 'stem':
-        this.commitPreview('생명선 길이', new Map([[it.original.id, it.original]]))
+        this.commitPreview(t('undo.lifeline'), new Map([[it.original.id, it.original]]))
         break
       case 'message':
         this.finishMessage(it)
         break
       case 'segment':
-        this.commitPreview('연결선 구간 옮기기', new Map([[it.original.id, it.original]]))
+        this.commitPreview(t('undo.moveSegment'), new Map([[it.original.id, it.original]]))
         break
       case 'marquee':
         break
@@ -2189,7 +2201,7 @@ export class BoardEditor {
       const bp = this.viewport.toBoard(sp.x, sp.y)
       const border = o.locked ? null : colBorderAt(layoutTable(o, measureAt), bp, 4 / this.viewport.zoom)
       if (border !== null) {
-        this.commit('열 너비 맞추기', [updateOp(o, autosizeTable(fitCol(o, border, measureAt), measureAt))])
+        this.commit(t('table.fitColumn'), [updateOp(o, autosizeTable(fitCol(o, border, measureAt), measureAt))])
         return
       }
       const cell = cellAt(layoutTable(o, measureAt), bp)
@@ -2224,15 +2236,15 @@ export class BoardEditor {
     const crop = this.cropping && !this.spaceHeld ? this.cropHandleAt(bp) : null
     if (this.cropping && !this.spaceHeld) {
       const cursors: Record<string, string> = { move: 'move', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' }
-      this.canvas.style.cursor = crop ? cursors[crop] : 'default'
+      this.setCursor(crop ? cursors[crop] : 'default')
       return
     }
     if (this.readOnly) {
-      if (!this.spaceHeld) this.canvas.style.cursor = this.linkAt(bp) ? 'pointer' : 'grab'
+      if (!this.spaceHeld) this.setCursor(this.linkAt(bp) ? 'pointer' : 'grab')
       return
     }
     if (this.tool.kind === 'select' && !this.spaceHeld && (this.linkBadgeAt(bp) || (!this.readOnly && this.foldBadgeAt(bp)))) {
-      this.canvas.style.cursor = 'pointer'
+      this.setCursor('pointer')
       return
     }
     const table = this.selectedTable()
@@ -2242,7 +2254,7 @@ export class BoardEditor {
       const onPlus = rectContainsPoint(h.addCol, bp) || rectContainsPoint(h.addRow, bp)
       const onBorder = !onPlus && !onGrip && colBorderAt(layoutTable(table, measureAt), bp, 4 / this.viewport.zoom) !== null
       if (onGrip || onPlus || onBorder) {
-        this.canvas.style.cursor = onGrip ? 'grab' : onPlus ? 'pointer' : 'col-resize'
+        this.setCursor(onGrip ? 'grab' : onPlus ? 'pointer' : 'col-resize')
         return
       }
     }
@@ -2252,7 +2264,7 @@ export class BoardEditor {
       this.requestRender()
     }
     if (nodeAdd) {
-      if (!this.spaceHeld) this.canvas.style.cursor = 'pointer'
+      if (!this.spaceHeld) this.setCursor('pointer')
       return
     }
     const actor = this.selectedActor()
@@ -2266,7 +2278,7 @@ export class BoardEditor {
       }
       if (side || onStem || dy !== null) {
         this.setHoverDot(side)
-        if (!this.spaceHeld) this.canvas.style.cursor = onStem ? 'ns-resize' : 'pointer'
+        if (!this.spaceHeld) this.setCursor(onStem ? 'ns-resize' : 'pointer')
         if (this.hoverId) {
           this.hoverId = null
           this.requestRender()
@@ -2279,12 +2291,12 @@ export class BoardEditor {
     }
     const labeled = this.tool.kind === 'select' && !this.spaceHeld ? this.labelUnder(bp) : null
     if (labeled && !labeled.locked) {
-      this.canvas.style.cursor = 'move'
+      this.setCursor('move')
       return
     }
     const handle = this.hitConnectorHandle(bp)
     if (handle) {
-      if (!this.spaceHeld) this.canvas.style.cursor = 'end' in handle ? 'grab' : handle.segment.axis === 'x' ? 'ew-resize' : 'ns-resize'
+      if (!this.spaceHeld) this.setCursor('end' in handle ? 'grab' : handle.segment.axis === 'x' ? 'ew-resize' : 'ns-resize')
       if (this.hoverId) {
         this.hoverId = null
         this.requestRender()
@@ -2296,13 +2308,7 @@ export class BoardEditor {
     const corner = dot ? null : this.hitHandle(bp)
     const hit = dot || corner ? null : this.hitTest(bp)
     if (this.tool.kind === 'select' && !this.spaceHeld) {
-      this.canvas.style.cursor = dot
-        ? 'pointer'
-        : corner
-          ? RESIZE_CURSOR[corner]
-          : hit
-            ? 'move'
-            : 'default'
+      this.setCursor(dot ? 'pointer' : corner ? RESIZE_CURSOR[corner] : hit ? 'move' : 'default')
     }
     if (hit !== this.hoverId) {
       this.hoverId = hit
@@ -2337,7 +2343,7 @@ export class BoardEditor {
         if (isMindmap(o)) {
           const root = this.doc.get(layout.rootOf.get(id) ?? id)
           if (root) originals.set(root.id, root)
-        } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o!)
+        } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o)
       }
       for (const [id, o] of originals) if (o.locked) originals.delete(id)
       if (originals.size === 0) {
@@ -2432,7 +2438,7 @@ export class BoardEditor {
   private updateEndpoint(it: Extract<Interaction, { kind: 'endpoint' }>, bp: Point, e: MouseEvent): void {
     const c = it.original
     const other = it.end === 'from' ? c.to : c.from
-    const target = this.endTarget(bp, endpointObjectId(other), 'side' in other ? (other.side ?? null) : null)
+    const target = this.endTarget(bp, endpointObjectId(other), 'side' in other ? (other.side ?? null) : null, 'at' in other ? (other.at ?? null) : null)
     let end: Endpoint
     if (target) {
       it.side = target.side
@@ -2618,7 +2624,7 @@ export class BoardEditor {
     )
     if (box?.kind !== 'box') return
     const text = toggleTaskLine(o.text, box.line)
-    if (text !== o.text) this.commit(box.checked ? '할 일 풀기' : '할 일 완료', [updateOp(o, { ...o, text })])
+    if (text !== o.text) this.commit(box.checked ? t('undo.uncheck') : t('undo.check'), [updateOp(o, { ...o, text })])
   }
 
   private clickSelect(hitId: string | null, shift: boolean): void {
@@ -2662,10 +2668,10 @@ export class BoardEditor {
     const payload = copyObjects(ids, this.doc.ordered(), this.lookup, (id) => layout.boxes.get(id))
     const copies = pasteObjects(payload, 0, 0, this.doc.maxZ() + 1).map((o) => {
       const { locked: _locked, ...rest } = o
-      return rest as BoardObject
+      return rest
     })
     if (copies.length === 0) return false
-    this.commit('복제', copies.map(createOp))
+    this.commit(t('edit.duplicate'), copies.map(createOp))
     this.selection = new Set(copies.map((o) => o.id))
     return true
   }
@@ -2704,7 +2710,7 @@ export class BoardEditor {
     shape = withDefaultStyle(shape)
     // Sections sit behind everything.
     if (isContainer(shape)) shape = { ...shape, z: Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1 }
-    this.commit('도형 추가', [createOp(shape)])
+    this.commit(t('undo.addShape'), [createOp(shape)])
     this.selection = new Set([shape.id])
     this.setTool({ kind: 'select' })
     if (shape.shape === 'table') {
@@ -2721,7 +2727,7 @@ export class BoardEditor {
     if (!isActor(a)) return null
     const slot = actorSlot(a, side, this.doc.ordered())
     const actor: ShapeObject = { ...a, id: newId(), x: slot.x, y: slot.y, text: '', z: this.doc.maxZ() + 1, groupId: undefined }
-    this.commit('액터 추가', [createOp(actor)])
+    this.commit(t('undo.addActor'), [createOp(actor)])
     this.selection = new Set([actor.id])
     this.startEditing(actor.id)
     return actor
@@ -2748,7 +2754,7 @@ export class BoardEditor {
       ...createConnector({ objectId: from.id, dy: it.dy }, { objectId: target.id, dy: toDy }, this.doc.maxZ() + 1),
       color: 'gray',
     }
-    this.commit('메시지 추가', [createOp(message)])
+    this.commit(t('undo.addMessage'), [createOp(message)])
     this.selection = new Set([message.id])
     this.hoverMessageDy = null
     this.startEditing(message.id)
@@ -2761,7 +2767,7 @@ export class BoardEditor {
     if ('point' in it.from && 'point' in to && distance(it.from.point, to.point) < GRID) return
     const connector = withDefaultStyle(createConnector(it.from, to, this.doc.maxZ() + 1))
     if (this.tool.kind === 'connector') this.setTool({ kind: 'select' })
-    this.commit('연결선 추가', [createOp(connector)])
+    this.commit(t('undo.addLine'), [createOp(connector)])
     this.selection = new Set([connector.id])
     this.startEditing(connector.id)
   }
@@ -2784,7 +2790,7 @@ export class BoardEditor {
       targetId = shape.id
     }
     if (source.shape !== 'sticky') ops.push(createOp(withDefaultStyle(createConnector({ objectId: source.id, side }, { objectId: targetId, side: OPPOSITE_SIDE[side] }, z))))
-    this.commit('빠른 추가', ops)
+    this.commit(t('undo.quickAdd'), ops)
     this.selection = new Set([targetId])
     this.hoverDot = null
     if (!plan.existingId) this.startEditing(targetId)
@@ -2813,7 +2819,7 @@ export class BoardEditor {
       const { groupId: _old, ...rest } = o
       return updateOp(o, groupId ? { ...rest, groupId } : rest)
     })
-    this.commit(group ? '그룹' : '그룹 해제', ops)
+    this.commit(group ? t('group.group') : t('group.ungroup'), ops)
   }
 
   // ---- find -----------------------------------------------------------------
@@ -2856,7 +2862,7 @@ export class BoardEditor {
       const sized = isShape(object) ? (object.shape === 'table' ? autosizeTable(object, measureAt) : autosizeShape(object, measureAt)) : object
       ops.push(updateOp(o, sized))
     }
-    if (ops.length) this.commit('바꾸기', ops)
+    if (ops.length) this.commit(t('find.replace'), ops)
     return total
   }
 
@@ -2955,17 +2961,17 @@ export class BoardEditor {
   /** Keys while a cell is selected (not edited). Returns whether the key was used. */
   private onCellKey(e: KeyboardEvent): boolean {
     const c = this.activeCell!
-    const t = this.doc.get(c.id)
-    if (!isShape(t) || t.shape !== 'table' || !this.selection.has(c.id) || this.selection.size !== 1) {
+    const table = this.doc.get(c.id)
+    if (!isShape(table) || table.shape !== 'table' || !this.selection.has(c.id) || this.selection.size !== 1) {
       this.activeCell = null
       return false
     }
-    const rows = tableCells(t).length
-    const cols = tableCols(t).length
+    const rows = tableCells(table).length
+    const cols = tableCols(table).length
     // Alt+arrows: the row up / down, the column left / right.
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.startsWith('Arrow')) {
       const up = e.key === 'ArrowUp' || e.key === 'ArrowLeft'
-      if (!t.locked) this.moveTablePart(e.key === 'ArrowUp' || e.key === 'ArrowDown' ? 'row' : 'col', e.key === 'ArrowUp' || e.key === 'ArrowDown' ? c.row : c.col, (e.key === 'ArrowUp' || e.key === 'ArrowDown' ? c.row : c.col) + (up ? -1 : 1))
+      if (!table.locked) this.moveTablePart(e.key === 'ArrowUp' || e.key === 'ArrowDown' ? 'row' : 'col', e.key === 'ArrowUp' || e.key === 'ArrowDown' ? c.row : c.col, (e.key === 'ArrowUp' || e.key === 'ArrowDown' ? c.row : c.col) + (up ? -1 : 1))
       e.preventDefault()
       return true
     }
@@ -2993,7 +2999,7 @@ export class BoardEditor {
         move(c.row, c.col + 1, e.shiftKey)
         break
       case 'Tab': {
-        const next = stepCell(t, c, e.shiftKey ? -1 : 1)
+        const next = stepCell(table, c, e.shiftKey ? -1 : 1)
         if (next) move(next.row, next.col)
         break
       }
@@ -3003,7 +3009,7 @@ export class BoardEditor {
         break
       case 'Delete':
       case 'Backspace':
-        if (!t.locked) this.commit('칸 지우기', [updateOp(t, autosizeTable(clearCells(t, range), measureAt))])
+        if (!table.locked) this.commit(t('undo.clearCells'), [updateOp(table, autosizeTable(clearCells(table, range), measureAt))])
         break
       case 'Escape':
         // A range shrinks to its cell first.
@@ -3032,11 +3038,11 @@ export class BoardEditor {
     op: 'rowAbove' | 'rowBelow' | 'colLeft' | 'colRight' | 'rowEnd' | 'colEnd' | 'deleteRow' | 'deleteCol' | 'header' | 'rowUp' | 'rowDown' | 'colBack' | 'colOn' | 'fit',
   ): void {
     this.commitEditing()
-    const t = this.selectedTable()
-    if (!t) return
-    const rows = tableCells(t).length
-    const cols = tableCols(t).length
-    const c = this.activeCell?.id === t.id ? this.activeCell : null
+    const table = this.selectedTable()
+    if (!table) return
+    const rows = tableCells(table).length
+    const cols = tableCols(table).length
+    const c = this.activeCell?.id === table.id ? this.activeCell : null
     const row = c?.row ?? rows - 1
     const col = c?.col ?? cols - 1
     let next: ShapeObject | null = null
@@ -3051,41 +3057,41 @@ export class BoardEditor {
         this.moveTablePart('col', col, col + (op === 'colBack' ? -1 : 1))
         return
       case 'rowAbove':
-        next = insertRow(t, row)
+        next = insertRow(table, row)
         cell = { row, col }
         break
       case 'rowBelow':
       case 'rowEnd':
-        next = insertRow(t, op === 'rowEnd' ? rows : row + 1)
+        next = insertRow(table, op === 'rowEnd' ? rows : row + 1)
         cell = { row: op === 'rowEnd' ? rows : row + 1, col: op === 'rowEnd' ? 0 : col }
         break
       case 'colLeft':
-        next = insertCol(t, col)
+        next = insertCol(table, col)
         cell = { row, col }
         break
       case 'colRight':
       case 'colEnd':
-        next = insertCol(t, op === 'colEnd' ? cols : col + 1)
+        next = insertCol(table, op === 'colEnd' ? cols : col + 1)
         cell = { row: op === 'colEnd' ? 0 : row, col: op === 'colEnd' ? cols : col + 1 }
         break
       case 'deleteRow':
-        next = deleteRow(t, row)
+        next = deleteRow(table, row)
         cell = { row: Math.min(row, rows - 2), col }
         break
       case 'deleteCol':
-        next = deleteCol(t, col)
+        next = deleteCol(table, col)
         cell = { row, col: Math.min(col, cols - 2) }
         break
       case 'header':
-        next = { ...t, header: !hasHeader(t) }
+        next = { ...table, header: !hasHeader(table) }
         break
       case 'fit': {
         // The selected cells' columns (all of them with no cell selected) as wide as their text.
         const r = c ? this.cellRange()! : { c0: 0, c1: cols - 1 }
-        next = t
+        next = table
         for (let i = r.c0; i <= r.c1; i++) next = fitCol(next, i, measureAt)
         if (c) {
-          this.commit('열 너비 맞추기', [updateOp(t, autosizeTable(next, measureAt))])
+          this.commit(t('table.fitColumn'), [updateOp(table, autosizeTable(next, measureAt))])
           this.requestRender()
           this.emitStatus()
           return
@@ -3094,8 +3100,8 @@ export class BoardEditor {
       }
     }
     if (!next) return
-    this.commit('표 바꾸기', [updateOp(t, autosizeTable(next, measureAt))])
-    this.activeCell = cell ? { id: t.id, ...cell } : null
+    this.commit(t('undo.changeTable'), [updateOp(table, autosizeTable(next, measureAt))])
+    this.activeCell = cell ? { id: table.id, ...cell } : null
     this.cellAnchor = null
     this.requestRender()
     this.emitStatus()
@@ -3103,12 +3109,12 @@ export class BoardEditor {
 
   /** Move the selected table's row or column `from` to `to`; the selected cell goes with it. */
   private moveTablePart(what: 'row' | 'col', from: number, to: number): void {
-    const t = this.selectedTable()
-    if (!t || t.locked) return
-    const next = what === 'row' ? moveRow(t, from, to) : moveCol(t, from, to)
+    const table = this.selectedTable()
+    if (!table || table.locked) return
+    const next = what === 'row' ? moveRow(table, from, to) : moveCol(table, from, to)
     if (!next) return
-    this.commit(what === 'row' ? '행 옮기기' : '열 옮기기', [updateOp(t, autosizeTable(next, measureAt))])
-    const c = this.activeCell?.id === t.id ? this.activeCell : { id: t.id, row: 0, col: 0 }
+    this.commit(what === 'row' ? t('undo.moveRow') : t('undo.moveCol'), [updateOp(table, autosizeTable(next, measureAt))])
+    const c = this.activeCell?.id === table.id ? this.activeCell : { id: table.id, row: 0, col: 0 }
     this.activeCell = what === 'row' ? { ...c, row: to } : { ...c, col: to }
     this.cellAnchor = null
     this.requestRender()
@@ -3135,7 +3141,7 @@ export class BoardEditor {
         const next: ShapeObject = name === null ? rest : { ...rest, icon: name, ...(style ?? o.iconStyle ? { iconStyle: style ?? o.iconStyle } : {}) }
         return updateOp(o, o.shape === 'icon' ? next : autosizeShape(next, measureAt))
       })
-    this.commit(name ? '아이콘' : '아이콘 없애기', ops)
+    this.commit(name ? t('icon') : t('icon.remove'), ops)
   }
 
   // ---- presenting ---------------------------------------------------------------
@@ -3206,7 +3212,7 @@ export class BoardEditor {
       this.hoverId = null
       this.emitStatus()
     }
-    this.canvas.style.cursor = on ? 'default' : this.toolCursor()
+    this.setCursor(on ? 'default' : this.toolCursor())
     this.requestRender()
   }
 
@@ -3233,10 +3239,10 @@ export class BoardEditor {
       const y = cy + (ty - cy) * k
       this.viewport.setState({ zoom: z, offsetX: x - this.viewport.width / z / 2, offsetY: y - this.viewport.height / z / 2 })
       this.renderNow()
-      if (t < 1) requestAnimationFrame(step)
+      if (t < 1) window.requestAnimationFrame(step)
       else this.viewportChanged()
     }
-    requestAnimationFrame(step)
+    window.requestAnimationFrame(step)
   }
 
   viewState(): ViewportState {
@@ -3281,7 +3287,7 @@ export class BoardEditor {
       // Sections go under everything, the rest on top.
       return { ...moved, z: isShape(o) && o.shape === 'section' ? bottom - 1 + o.z : top + o.z }
     })
-    this.commit('Mermaid 가져오기', placed.map(createOp))
+    this.commit(t('mermaid.importTitle'), placed.map(createOp))
     this.selection = new Set(placed.map((o) => o.id))
     this.afterSelectionChange()
     const view = this.viewport.visibleRect()
@@ -3306,7 +3312,7 @@ export class BoardEditor {
 
   /** Give the selected shapes a link, or take it off with null (link objects keep theirs). */
   setLink(link: string | null): void {
-    this.updateSelected(link ? '링크 걸기' : '링크 없애기', (o) => {
+    this.updateSelected(link ? t('link.setOnShape') : t('link.remove'), (o) => {
       if (!isShape(o) || o.shape === 'link') return o
       const { link: _link, ...rest } = o
       return link ? { ...rest, link } : rest
@@ -3343,7 +3349,7 @@ export class BoardEditor {
       x = snap(x + it.w + GRID * 2)
       return 'src' in it ? { ...base, src: it.src } : { ...withDefaultStyle(base), link: it.link }
     })
-    this.commit('파일 넣기', shapes.map(createOp))
+    this.commit(t('file.add'), shapes.map(createOp))
     this.selection = new Set(shapes.map((o) => o.id))
     this.afterSelectionChange()
   }
@@ -3378,7 +3384,7 @@ export class BoardEditor {
     const sized = autosizeShape(base, measureAt)
     const spot = this.freeSpot({ x: snap(at.x - sized.w / 2), y: snap(at.y - sized.h / 2), w: sized.w, h: sized.h })
     const link = { ...sized, x: spot.x, y: spot.y }
-    this.commit('링크 추가', [createOp(link)])
+    this.commit(t('link.add'), [createOp(link)])
     this.selection = new Set([link.id])
     this.afterSelectionChange()
   }
@@ -3406,7 +3412,7 @@ export class BoardEditor {
     const o = this.doc.get(id)
     if (!isShape(o) || o.shape !== 'link' || o.locked) return
     const { src: _src, preview: _preview, ...rest } = o
-    this.commit('링크 바꾸기', [updateOp(o, autosizeShape({ ...rest, ...clean(fields) }, measureAt))])
+    this.commit(t('link.change'), [updateOp(o, autosizeShape({ ...rest, ...clean(fields) }, measureAt))])
   }
 
   /** Show the selected link objects as a card with the preview, or as one line again. */
@@ -3414,7 +3420,7 @@ export class BoardEditor {
     const links = this.selectedObjects().filter((o): o is ShapeObject => isShape(o) && o.shape === 'link' && !o.locked)
     const expand = !links.every((o) => o.expanded)
     this.commit(
-      expand ? '카드로 보기' : '한 줄로 보기',
+      expand ? t('link.card') : t('link.compact'),
       links.map((o) => {
         const { expanded: _e, ...rest } = o
         return updateOp(o, autosizeShape(expand ? { ...rest, expanded: true } : rest, measureAt))
@@ -3440,9 +3446,9 @@ export class BoardEditor {
       : boardLink(this.doc.meta.id, only)
     try {
       await navigator.clipboard.writeText(link)
-      this.opts.onNotice?.(view ? '지금 보이는 위치의 링크를 복사했습니다' : only ? '객체 링크를 복사했습니다' : '보드 링크를 복사했습니다')
+      this.opts.onNotice?.(view ? t('link.copiedView') : only ? t('link.copiedObject') : t('link.copiedBoard'))
     } catch {
-      this.opts.onNotice?.('링크를 복사하지 못했습니다')
+      this.opts.onNotice?.(t('link.copyFailed'))
     }
   }
 
@@ -3490,7 +3496,7 @@ export class BoardEditor {
       const { crop: _old, ...rest } = o
       const box = { x: Math.round(a.x), y: Math.round(a.y), w: Math.round(a.w), h: Math.round(a.h) }
       const next: ShapeObject = { ...rest, ...box, idealW: box.w, idealH: box.h, ...(whole ? {} : { crop }) }
-      if (JSON.stringify(next) !== JSON.stringify(o)) this.commit('이미지 자르기', [updateOp(o, next)])
+      if (JSON.stringify(next) !== JSON.stringify(o)) this.commit(t('image.crop'), [updateOp(o, next)])
     }
     this.requestRender()
     this.emitStatus()
@@ -3512,7 +3518,7 @@ export class BoardEditor {
     const w = Math.round(o.w / c.w)
     const h = Math.round(o.h / c.h)
     const { crop: _old, ...rest } = o
-    this.commit('자르기 없애기', [updateOp(o, { ...rest, x: Math.round(o.x - c.x * w), y: Math.round(o.y - c.y * h), w, h, idealW: w, idealH: h })])
+    this.commit(t('image.uncrop'), [updateOp(o, { ...rest, x: Math.round(o.x - c.x * w), y: Math.round(o.y - c.y * h), w, h, idealW: w, idealH: h })])
   }
 
   /** Under `p` while cropping: a frame handle, inside the frame ('move'), or nothing. */
@@ -3574,9 +3580,9 @@ export class BoardEditor {
     const lock = !objects.every((o) => o.locked)
     const ops = objects.map((o) => {
       const { locked: _locked, ...rest } = o
-      return updateOp(o, (lock ? { ...rest, locked: true } : rest) as BoardObject)
+      return updateOp(o, (lock ? { ...rest, locked: true } : rest))
     })
-    this.commit(lock ? '잠금' : '잠금 해제', ops)
+    this.commit(lock ? t('lock.lock') : t('lock.unlock'), ops)
   }
 
   /** Turn the selected flowchart shapes 90° clockwise around their centers. */
@@ -3591,7 +3597,7 @@ export class BoardEditor {
         const next: ShapeObject = { ...rest, x, y, w: s.h, h: s.w, idealW: s.idealH, idealH: s.idealW }
         return updateOp(s, angle ? { ...next, angle } : next)
       })
-    this.commit('회전', ops)
+    this.commit(t('undo.rotate'), ops)
   }
 
   /** Ctrl+Alt+C: remember the style of the (first) selected object. */
@@ -3605,7 +3611,7 @@ export class BoardEditor {
   /** Ctrl+Alt+V: give the selection the copied style. */
   pasteStyle(): void {
     const style = copiedStyle
-    if (style) this.updateSelected('스타일 붙여넣기', (o) => applyStyle(o, style))
+    if (style) this.updateSelected(t('style.paste'), (o) => applyStyle(o, style))
   }
 
   canPasteStyle(): boolean {
@@ -3630,7 +3636,7 @@ export class BoardEditor {
     const h = snap(b.y + b.h + WRAP_PADDING) - y
     const z = Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1
     const section = withDefaultStyle(createShape('section', x, y, z, { w, h }))
-    this.commit('섹션으로 감싸기', [createOp(section)])
+    this.commit(t('section.wrap'), [createOp(section)])
     this.selection = new Set([section.id])
     this.afterSelectionChange()
     this.startEditing(section.id, true)
@@ -3646,7 +3652,7 @@ export class BoardEditor {
         const h = sized ? s.h : Math.max(GRID, snap(s.h))
         return updateOp(s, { ...s, x: snap(s.x), y: snap(s.y), w, h, idealW: sized ? s.idealW : w, idealH: sized ? s.idealH : h })
       })
-    this.commit('격자에 맞추기', ops)
+    this.commit(t('grid.snap'), ops)
   }
 
   /**
@@ -3692,7 +3698,7 @@ export class BoardEditor {
       const y = how === 'top' ? b.y : how === 'bottom' ? b.y + b.h - s.h : how === 'vcenter' ? Math.round(b.y + (b.h - s.h) / 2) : s.y
       return updateOp(s, { ...s, x, y })
     })
-    this.commit('정렬', ops)
+    this.commit(t('text.align'), ops)
   }
 
   /** Equal gaps between the selected shapes, keeping the first and last in place. */
@@ -3712,7 +3718,7 @@ export class BoardEditor {
       at += size(s) + gap
       return updateOp(s, axis === 'h' ? { ...s, x: p } : { ...s, y: p })
     })
-    this.commit('간격 맞추기', ops)
+    this.commit(t('undo.distribute'), ops)
   }
 
   // ---- stacking order -------------------------------------------------------
@@ -3736,7 +3742,7 @@ export class BoardEditor {
     list.forEach((o, i) => {
       if (o.z !== zs[i]) ops.push(updateOp(o, { ...o, z: zs[i] }))
     })
-    this.commit('순서 바꾸기', ops)
+    this.commit(t('undo.reorder'), ops)
   }
 
   // ---- auto layout ----------------------------------------------------------
@@ -3749,7 +3755,7 @@ export class BoardEditor {
     this.commitEditing()
     const ops = await layoutOps(this.doc, [...this.selection], direction)
     if (ops.length === 0) return false
-    this.commit('자동 정렬', ops)
+    this.commit(t('layout.auto'), ops)
     return true
   }
 
@@ -3796,7 +3802,6 @@ export class BoardEditor {
     return previewSvg(objects)
   }
 
-  /** Replace the whole board with `objects` as one undoable step (restoring a version). */
   /** Objects changed from outside the board's own tools (links following a moved file), as one step. */
   updateObjects(objects: BoardObject[], label: string): void {
     const ops = objects.flatMap((o) => {
@@ -3806,6 +3811,7 @@ export class BoardEditor {
     if (ops.length) this.commit(label, ops)
   }
 
+  /** Replace the whole board with `objects` as one undoable step (restoring a version). */
   replaceAll(objects: BoardObject[], label: string): void {
     this.commitEditing()
     const next = new Map(objects.map((o) => [o.id, o]))
@@ -3860,7 +3866,7 @@ export class BoardEditor {
 
   private createMindmapRoot(at: Point): void {
     const root = createMindmapNode(null, at.x, at.y, 0, 'gray', this.doc.maxZ() + 1)
-    this.commit('마인드맵 추가', [createOp(root)])
+    this.commit(t('undo.addMindmap'), [createOp(root)])
     this.selection = new Set([root.id])
     this.setTool({ kind: 'select' })
     this.startEditing(root.id)
@@ -3907,7 +3913,7 @@ export class BoardEditor {
     const made = createMindmapNode(parentId, 0, 0, order, this.branchColorFor(parent), this.doc.maxZ() + 1)
     // Only a root's own branches carry a side.
     const node: MindmapNode = left && !parent.parentId ? { ...made, side: 'left' } : made
-    this.commit('노드 추가', [createOp(node), ...(parent.collapsed ? [updateOp(parent, unfolded(parent, false))] : [])])
+    this.commit(t('undo.addNode'), [createOp(node), ...(parent.collapsed ? [updateOp(parent, unfolded(parent, false))] : [])])
     this.selection = new Set([node.id])
     this.startEditing(node.id)
   }
@@ -3924,7 +3930,7 @@ export class BoardEditor {
     const order = next ? (node.order + next.order) / 2 : node.order + 1
     const made = createMindmapNode(parent.id, 0, 0, order, this.branchColorFor(parent), this.doc.maxZ() + 1)
     const sibling: MindmapNode = node.side ? { ...made, side: node.side } : made
-    this.commit('노드 추가', [createOp(sibling)])
+    this.commit(t('undo.addNode'), [createOp(sibling)])
     this.selection = new Set([sibling.id])
     this.startEditing(sibling.id)
   }
@@ -3968,7 +3974,7 @@ export class BoardEditor {
       const box = layout.boxes.get(node.id)
       const { side: _side, ...free } = node
       ops.push(updateOp(node, { ...free, parentId: null, order: 0, x: snap(it.current.x - 8), y: snap(it.current.y - (box?.h ?? 0) / 2) }))
-      this.commit('새 마인드맵으로 떼어내기', ops)
+      this.commit(t('undo.detachNode'), ops)
       return
     }
     const parent = this.doc.get(it.target.parentId)
@@ -3994,7 +4000,7 @@ export class BoardEditor {
       const d = this.doc.get(id)
       if (isMindmap(d) && d.color !== color) ops.push(updateOp(d, { ...d, color }))
     }
-    this.commit('노드 옮기기', ops)
+    this.commit(t('undo.moveNode'), ops)
   }
 
   /** Whether the node is on its root's left (branches grow leftwards). */
@@ -4019,7 +4025,7 @@ export class BoardEditor {
       const { side: _side, ...rest } = n
       return updateOp(n, n.side === 'left' ? rest : { ...rest, side: 'left' as const })
     })
-    if (ops.length) this.commit('반대쪽으로 보내기', ops)
+    if (ops.length) this.commit(t('undo.otherSide'), ops)
   }
 
   /** The selected root's branches: the later half to its left (`both`), or all of them right. */
@@ -4035,7 +4041,7 @@ export class BoardEditor {
       const { side: _side, ...rest } = k
       return [updateOp(k, left ? { ...rest, side: 'left' as const } : rest)]
     })
-    if (ops.length) this.commit(both ? '양쪽으로 나누기' : '오른쪽으로 모으기', ops)
+    if (ops.length) this.commit(both ? t('undo.spread') : t('undo.gatherRight'), ops)
   }
 
   /** How many branches grow from a mind map node (folded or not). */
@@ -4060,7 +4066,7 @@ export class BoardEditor {
 
   private setFolded(nodes: MindmapNode[], fold: boolean): void {
     const ops = nodes.filter((n) => !!n.collapsed !== fold).map((n) => updateOp(n, unfolded(n, fold)))
-    if (ops.length) this.commit(fold ? '가지 접기' : '가지 펼치기', ops)
+    if (ops.length) this.commit(fold ? t('mindmap.fold') : t('mindmap.unfold'), ops)
   }
 
   /** Unfold whatever hides `id` (to show a found or linked node). */
@@ -4096,7 +4102,7 @@ export class BoardEditor {
     // The new node takes the branch's side; the node under it follows it.
     const middle: MindmapNode = node.side ? { ...made, side: node.side } : made
     const { side: _side, ...moved } = node
-    this.commit('부모 노드 추가', [createOp(middle), updateOp(node, { ...moved, parentId: middle.id, order: 0 })])
+    this.commit(t('undo.addParent'), [createOp(middle), updateOp(node, { ...moved, parentId: middle.id, order: 0 })])
     this.selection = new Set([middle.id])
     this.startEditing(middle.id)
   }
@@ -4148,7 +4154,7 @@ export class BoardEditor {
     if (isConnector(o)) {
       ta.classList.add('label')
       field.value = o.label
-      field.placeholder = '텍스트 추가'
+      field.placeholder = t('undo.addText')
     } else {
       field.value = o.text
       if (isMindmap(o)) ta.classList.add('mindmap')
@@ -4161,7 +4167,7 @@ export class BoardEditor {
       const onSelection = () => {
         if (queued || doc.activeElement !== ta) return
         queued = true
-        requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
           queued = false
           if (this.editing?.field === field) this.emitStatus()
         })
@@ -4312,8 +4318,8 @@ export class BoardEditor {
     if (after && current && (emptyText || emptyBranch)) {
       // An empty free-text object is removed when editing ends.
       this.selection.delete(ed.id)
-      this.commit('텍스트 삭제', [deleteOp(current)])
-    } else if (after && current) this.commit('텍스트 편집', [updateOp(ed.original, after)])
+      this.commit(t('undo.deleteText'), [deleteOp(current)])
+    } else if (after && current) this.commit(t('undo.editText'), [updateOp(ed.original, after)])
     this.requestRender()
     this.emitStatus()
   }
@@ -4324,7 +4330,7 @@ export class BoardEditor {
     if (this.presenting || this.editing || isTypingTarget(e.target)) return
     if (!this.host.isConnected || !this.active()) return
     const mod = e.ctrlKey || e.metaKey
-    const key = e.key.toLowerCase()
+    const key = shortcutKey(e)
 
     if (this.cropping) {
       if (e.key === 'Enter' || e.key === 'Escape') {
@@ -4342,7 +4348,7 @@ export class BoardEditor {
     if (e.key === ' ') {
       if (!this.spaceHeld) {
         this.spaceHeld = true
-        this.canvas.style.cursor = 'grab'
+        this.setCursor('grab')
       }
       e.preventDefault()
       return
@@ -4441,6 +4447,12 @@ export class BoardEditor {
     if (mod && key === '0') {
       e.preventDefault()
       this.resetZoom()
+      return
+    }
+    // Ctrl+= (or Ctrl++) / Ctrl+-: zoom the board in or out, as the view buttons do.
+    if (mod && !e.altKey && (key === '=' || key === '+' || key === '-')) {
+      e.preventDefault()
+      this.zoomBy(key === '-' ? 1 / 1.25 : 1.25)
       return
     }
     if (mod && key === 'g') {
@@ -4556,7 +4568,7 @@ export class BoardEditor {
     if (e.key === '`') this.backtickHeld = false
     if (e.key === ' ') {
       this.spaceHeld = false
-      if (this.interaction.kind !== 'pan') this.canvas.style.cursor = this.toolCursor()
+      if (this.interaction.kind !== 'pan') this.setCursor(this.toolCursor())
     }
   }
 
@@ -4571,7 +4583,7 @@ export class BoardEditor {
       .filter(isDefined)
       .filter((o) => !o.locked)
       .map((o) => updateOp(o, translate(o, dx, dy)))
-    this.commit('이동', ops)
+    this.commit(t('undo.move'), ops)
   }
 
   // ---- bookkeeping --------------------------------------------------------

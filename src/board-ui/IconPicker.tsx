@@ -13,6 +13,7 @@ import {
   type IconStyle,
 } from '@boardline/core/icons/iconData'
 import { BackIcon } from './icons'
+import { t } from '@boardline/core/i18n'
 
 /** Re-render when icon data finishes loading. */
 function useIconsLoaded(): void {
@@ -36,9 +37,9 @@ export function IconGlyph({ name, style, size = 20, tint = 'var(--accent)' }: { 
 }
 
 const STYLES: { style: IconStyle; label: string }[] = [
-  { style: 'color', label: '컬러 (두 가지 색)' },
-  { style: 'fill', label: '채움' },
-  { style: 'outline', label: '외곽선' },
+  { style: 'color', get label() { return t('icon.styleColor') } },
+  { style: 'fill', get label() { return t('icon.styleFill') } },
+  { style: 'outline', get label() { return t('style.outline') } },
 ]
 
 interface Props {
@@ -83,7 +84,7 @@ export function IconPicker({ style, onStyle, onPick, onRemove, onClose }: Props)
     <div className="bl-icon-picker" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       {category && !query && (
         <div className="bl-icon-picker-title">
-          <button title="분류로 돌아가기" onClick={() => setCategory(null)}>
+          <button title={t('icon.backToCategories')} onClick={() => setCategory(null)}>
             <BackIcon />
           </button>
           <span>{categoryLabel}</span>
@@ -92,7 +93,7 @@ export function IconPicker({ style, onStyle, onPick, onRemove, onClose }: Props)
       <div className="bl-icon-picker-head">
         <input
           autoFocus
-          placeholder="아이콘 검색 (영어)"
+          placeholder={t('icon.search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -119,7 +120,7 @@ export function IconPicker({ style, onStyle, onPick, onRemove, onClose }: Props)
           )}
           {onRemove && (
             <button className="bl-icon-picker-row" onClick={onRemove}>
-              아이콘 없애기
+              {t('icon.remove')}
             </button>
           )}
           <div className="bl-icon-categories">
@@ -133,8 +134,8 @@ export function IconPicker({ style, onStyle, onPick, onRemove, onClose }: Props)
       )}
       {(query || category) && (
         <div className="bl-icon-grid bl-scroll">
-          {!all && <span className="bl-icon-picker-empty">불러오는 중…</span>}
-          {all && shown.length === 0 && <span className="bl-icon-picker-empty">찾는 아이콘이 없습니다</span>}
+          {!all && <span className="bl-icon-picker-empty">{t('common.loading')}</span>}
+          {all && shown.length === 0 && <span className="bl-icon-picker-empty">{t('icon.noResults')}</span>}
           {shown.map((i) => (
             <button key={i.n} title={i.n} onClick={() => pick(i.n)}>
               <IconGlyph name={i.n} style={style} size={22} />

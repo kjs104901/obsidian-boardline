@@ -102,6 +102,10 @@ function textCenterY(o: ShapeObject): number {
   if (o.shape === 'triangle' && turns === 2) return o.y + o.h * 0.38
   if (o.shape === 'cloud' && turns === 0) return o.y + o.h * 0.56
   if (o.shape === 'cylinder' && turns === 0) return o.y + o.h / 2 + 7
+  // Above a document's wavy edge, inside the front sheet of a stack, below a sloped top.
+  if (o.shape === 'document' && turns === 0) return o.y + o.h * 0.44
+  if (o.shape === 'documents' && turns === 0) return o.y + o.h * 0.54
+  if (o.shape === 'manual-input' && turns === 0) return o.y + o.h / 2 + Math.min(o.h * 0.3, 24) / 2
   return o.y + o.h / 2
 }
 

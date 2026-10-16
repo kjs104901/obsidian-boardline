@@ -40,8 +40,8 @@ export class ImageCache {
       const blob = await this.load(src)
       return await new Promise<string>((resolve, reject) => {
         const r = new FileReader()
-        r.onload = () => resolve(String(r.result))
-        r.onerror = () => reject(r.error)
+        r.onload = () => resolve(r.result as string)
+        r.onerror = () => reject(r.error ?? new Error('The image could not be read'))
         r.readAsDataURL(blob)
       })
     } catch {

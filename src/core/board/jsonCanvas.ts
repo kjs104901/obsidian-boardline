@@ -50,7 +50,7 @@ const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
 export function canvasToObjects(json: string): BoardObject[] {
   let data: { nodes?: CanvasNode[]; edges?: CanvasEdge[] }
   try {
-    data = JSON.parse(json)
+    data = JSON.parse(json) as typeof data
   } catch {
     return []
   }

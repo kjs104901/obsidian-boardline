@@ -80,6 +80,36 @@ function basePathData(kind: ShapeKind, r: Rect): string {
         `M${r.x} ${top}A${rx} ${ry} 0 0 0 ${r.x + r.w} ${top}`
       )
     }
+    case 'document':
+      return documentData(r)
+    case 'documents': {
+      // Two sheets behind the front one, up and to the right: only their top and right edges show.
+      const d = Math.min(10, r.w * 0.06, r.h * 0.12)
+      const bottom = r.y + 2 * d + (r.h - 2 * d) * 0.86
+      const back = (k: number) => `M${r.x + k} ${r.y + 3 * d - k}V${r.y + 2 * d - k}H${r.x + r.w - 2 * d + k}V${bottom - k}H${r.x + r.w - 3 * d + k}`
+      return back(2 * d) + back(d) + documentData({ x: r.x, y: r.y + 2 * d, w: r.w - 2 * d, h: r.h - 2 * d })
+    }
+    case 'subroutine': {
+      // Predefined process: a box with a line inside each end.
+      const s = Math.min(12, r.w / 8)
+      return roundRectData(r, Math.min(RECT_RADIUS, r.w / 2, r.h / 2)) + `M${r.x + s} ${r.y}V${r.y + r.h}M${r.x + r.w - s} ${r.y}V${r.y + r.h}`
+    }
+    case 'manual-input': {
+      // The top slopes up to the right.
+      const s = Math.min(r.h * 0.3, 24)
+      return `M${r.x} ${r.y + s}L${r.x + r.w} ${r.y}V${r.y + r.h}H${r.x}Z`
+    }
+    case 'delay': {
+      // Flat on the left, a half round on the right.
+      const rx = Math.min(r.w / 2, r.h / 2)
+      return `M${r.x} ${r.y}H${r.x + r.w - rx}A${rx} ${r.h / 2} 0 0 1 ${r.x + r.w - rx} ${r.y + r.h}H${r.x}Z`
+    }
+    case 'display': {
+      // Pointed on the left, rounded on the right.
+      const s = Math.min(24, r.w / 5)
+      const rx = Math.min(r.w / 4, r.h / 2)
+      return `M${r.x} ${r.y + r.h / 2}L${r.x + s} ${r.y}H${r.x + r.w - rx}A${rx} ${r.h / 2} 0 0 1 ${r.x + r.w - rx} ${r.y + r.h}H${r.x + s}Z`
+    }
     case 'cloud': {
       const X = (f: number) => r.x + f * r.w
       const Y = (f: number) => r.y + f * r.h
@@ -107,6 +137,12 @@ function basePathData(kind: ShapeKind, r: Rect): string {
     default:
       return roundRectData(r, 0)
   }
+}
+
+/** A sheet with a wavy bottom edge (flowchart "document"). */
+function documentData(r: Rect): string {
+  const { x, y, w, h } = r
+  return `M${x} ${y}H${x + w}V${y + h * 0.86}C${x + w * 0.75} ${y + h * 0.62} ${x + w * 0.42} ${y + h * 1.1} ${x} ${y + h * 0.9}Z`
 }
 
 /** Rectangle with rounded corners (radius 0 gives a plain rectangle). */

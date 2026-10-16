@@ -9,6 +9,7 @@ import type { Point } from '@boardline/core/engine/geometry'
 import { COPY_AS, MenuItem, ObjectMenuItems, SubMenu, TABLE_OPS, tableOpDisabled, type ObjectMenuProps } from './ObjectMenu'
 import { BASIC_SHAPES } from './shapeKinds'
 import { LINE_KINDS } from './SelectionToolbar'
+import { t } from '@boardline/core/i18n'
 
 interface Props extends Omit<ObjectMenuProps, 'done' | 'status' | 'onPaste'> {
   editor: BoardEditor
@@ -28,11 +29,11 @@ interface Props extends Omit<ObjectMenuProps, 'done' | 'status' | 'onPaste'> {
 }
 
 const ADD_HERE: { kind: ShapeKind; label: string; key: string }[] = [
-  { kind: 'rect', label: '사각형', key: 'R' },
-  { kind: 'sticky', label: '스티키 노트', key: 'N' },
-  { kind: 'text', label: '텍스트', key: 'T' },
-  { kind: 'section', label: '섹션', key: '.' },
-  { kind: 'table', label: '표', key: 'E' },
+  { kind: 'rect', get label() { return t('shape.rect') }, key: 'R' },
+  { kind: 'sticky', get label() { return t('kind.sticky') }, key: 'N' },
+  { kind: 'text', get label() { return t('kind.text') }, key: 'T' },
+  { kind: 'section', get label() { return t('kind.section') }, key: '.' },
+  { kind: 'table', get label() { return t('kind.table') }, key: 'E' },
 ]
 
 export function ContextMenu(props: Props) {
@@ -77,12 +78,12 @@ export function ContextMenu(props: Props) {
   const selected = status?.selected ?? []
   const one = selected.length === 1 ? selected[0] : null
   const editable = !readOnly && one && !one.locked
-  const paste = <MenuItem label="붙여넣기" keys="Ctrl+V" disabled={readOnly} onClick={run(() => void editor.pasteAt(board))} />
+  const paste = <MenuItem label={t('edit.paste')} keys="Ctrl+V" disabled={readOnly} onClick={run(() => void editor.pasteAt(board))} />
   // Nothing is selected here, so the whole board is copied.
   const copyBoardAs = async (c: (typeof COPY_AS)[number]) => {
     onClose()
     const ok = await editor.copyAs(c.format)
-    props.onNotice?.(ok ? c.done : '복사하지 못했습니다')
+    props.onNotice?.(ok ? c.done : t('copy.failed'))
   }
 
   // What the clicked kind of thing can do.
@@ -91,12 +92,12 @@ export function ContextMenu(props: Props) {
     if (isConnector(one)) {
       return (
         <>
-          <MenuItem label={one.label ? '라벨 고치기' : '라벨 달기'} keys="Enter" onClick={run(() => editor.editSelection())} />
+          <MenuItem label={one.label ? t('label.edit') : t('label.add')} keys="Enter" onClick={run(() => editor.editSelection())} />
           {one.label && one.labelPos !== undefined && (
             <MenuItem
-              label="라벨 가운데로"
+              label={t('label.center')}
               onClick={run(() =>
-                editor.updateSelected('라벨 옮기기', (o) => {
+                editor.updateSelected(t('label.move'), (o) => {
                   if (!isConnector(o)) return o
                   const { labelPos: _pos, ...rest } = o
                   return rest
@@ -104,22 +105,22 @@ export function ContextMenu(props: Props) {
               )}
             />
           )}
-          <SubMenu label="선 모양">
+          <SubMenu label={t('line.shape')}>
             {LINE_KINDS.map((k) => (
               <MenuItem
                 key={k.kind}
                 label={k.label + (one.kind === k.kind ? ' ✓' : '')}
-                onClick={run(() => editor.updateSelected('선 종류', (o) => (isConnector(o) ? { ...o, kind: k.kind } : o)))}
+                onClick={run(() => editor.updateSelected(t('line.kind'), (o) => (isConnector(o) ? { ...o, kind: k.kind } : o)))}
               />
             ))}
           </SubMenu>
           <MenuItem
-            label={one.line === 'dashed' ? '실선으로' : '점선으로'}
-            onClick={run(() => editor.updateSelected('선 스타일', (o) => (isConnector(o) ? { ...o, line: o.line === 'dashed' ? 'solid' : 'dashed' } : o)))}
+            label={one.line === 'dashed' ? t('line.toSolid') : t('line.toDashed')}
+            onClick={run(() => editor.updateSelected(t('line.style'), (o) => (isConnector(o) ? { ...o, line: o.line === 'dashed' ? 'solid' : 'dashed' } : o)))}
           />
           <MenuItem
-            label="방향 바꾸기"
-            onClick={run(() => editor.updateSelected('방향 바꾸기', (o) => (isConnector(o) ? { ...o, from: o.to, to: o.from, startCap: o.endCap, endCap: o.startCap } : o)))}
+            label={t('line.reverse')}
+            onClick={run(() => editor.updateSelected(t('line.reverse'), (o) => (isConnector(o) ? { ...o, from: o.to, to: o.from, startCap: o.endCap, endCap: o.startCap } : o)))}
           />
         </>
       )
@@ -127,29 +128,29 @@ export function ContextMenu(props: Props) {
     if (isMindmap(one)) {
       return (
         <>
-          <MenuItem label="자식 노드 추가" keys="Tab" onClick={run(() => editor.addChildNode(one.id))} />
-          {editor.branchCount(one.id) > 0 && <MenuItem label={one.collapsed ? '가지 펼치기' : '가지 접기'} keys="/" onClick={run(() => editor.toggleFold())} />}
-          {one.parentId && <MenuItem label="형제 노드 추가" keys="Ctrl+Enter" onClick={run(() => editor.addSiblingNode(one.id))} />}
-          {one.parentId && <MenuItem label="부모 노드 끼워 넣기" keys="Alt+Enter" onClick={run(() => editor.insertParentNode(one.id))} />}
-          <MenuItem label="글 고치기" keys="Enter" onClick={run(() => editor.editSelection())} />
-          {editor.nodeLevel(one.id) === 1 && <MenuItem label={one.side === 'left' ? '오른쪽으로 보내기' : '왼쪽으로 보내기'} onClick={run(() => editor.flipSide())} />}
+          <MenuItem label={t('mindmap.addChild')} keys="Tab" onClick={run(() => editor.addChildNode(one.id))} />
+          {editor.branchCount(one.id) > 0 && <MenuItem label={one.collapsed ? t('mindmap.unfold') : t('mindmap.fold')} keys="/" onClick={run(() => editor.toggleFold())} />}
+          {one.parentId && <MenuItem label={t('mindmap.addSibling')} keys="Ctrl+Enter" onClick={run(() => editor.addSiblingNode(one.id))} />}
+          {one.parentId && <MenuItem label={t('mindmap.insertParent')} keys="Alt+Enter" onClick={run(() => editor.insertParentNode(one.id))} />}
+          <MenuItem label={t('text.edit')} keys="Enter" onClick={run(() => editor.editSelection())} />
+          {editor.nodeLevel(one.id) === 1 && <MenuItem label={one.side === 'left' ? t('mindmap.toRight') : t('mindmap.toLeft')} onClick={run(() => editor.flipSide())} />}
           {!one.parentId && editor.branchCount(one.id) > 1 && (
             <>
-              <MenuItem label="가지를 양쪽으로 나누기" onClick={run(() => editor.spreadBranches(true))} />
-              <MenuItem label="가지를 오른쪽으로 모으기" onClick={run(() => editor.spreadBranches(false))} />
+              <MenuItem label={t('mindmap.spread')} onClick={run(() => editor.spreadBranches(true))} />
+              <MenuItem label={t('mindmap.gatherRight')} onClick={run(() => editor.spreadBranches(false))} />
             </>
           )}
         </>
       )
     }
     if (!isShape(one)) return null
-    const open = one.link ? <MenuItem label={one.shape === 'note' ? '파일 열기' : '링크 열기'} keys={one.shape === 'note' ? 'Enter' : undefined} onClick={run(() => props.onOpenLink?.(one.link!))} /> : null
+    const open = one.link ? <MenuItem label={one.shape === 'note' ? t('file.open') : t('link.open')} keys={one.shape === 'note' ? 'Enter' : undefined} onClick={run(() => props.onOpenLink?.(one.link!))} /> : null
     switch (one.shape) {
       case 'image':
         return (
           <>
-            <MenuItem label="이미지 자르기" keys="Enter" onClick={run(() => editor.startCrop())} />
-            {one.crop && <MenuItem label="자르기 없애기" onClick={run(() => editor.uncrop())} />}
+            <MenuItem label={t('image.crop')} keys="Enter" onClick={run(() => editor.startCrop())} />
+            {one.crop && <MenuItem label={t('image.uncrop')} onClick={run(() => editor.uncrop())} />}
             {open}
           </>
         )
@@ -160,13 +161,13 @@ export function ContextMenu(props: Props) {
         return (
           <>
             {open}
-            <MenuItem label="링크 바꾸기…" onClick={run(() => props.onLinkDialog?.('edit', one.id, one.link))} />
-            <MenuItem label={one.expanded ? '한 줄로 보기' : '카드로 보기'} onClick={run(() => editor.toggleLinkCard())} />
+            <MenuItem label={t('link.changeMenu')} onClick={run(() => props.onLinkDialog?.('edit', one.id, one.link))} />
+            <MenuItem label={one.expanded ? t('link.compact') : t('link.card')} onClick={run(() => editor.toggleLinkCard())} />
           </>
         )
       case 'table':
         return (
-          <SubMenu label="표">
+          <SubMenu label={t('kind.table')}>
             {TABLE_OPS.map((t) => (
               <Fragment key={t.op}>
                 {t.sep && <hr />}
@@ -179,22 +180,22 @@ export function ContextMenu(props: Props) {
         const index = editor.slideSections().findIndex((s) => s.id === one.id)
         return (
           <>
-            <MenuItem label="제목 고치기" keys="Enter" onClick={run(() => editor.editSelection())} />
-            <MenuItem label="이 섹션부터 발표" onClick={run(() => props.onPresent(Math.max(0, index)))} />
+            <MenuItem label={t('section.editTitle')} keys="Enter" onClick={run(() => editor.editSelection())} />
+            <MenuItem label={t('present.fromSection')} onClick={run(() => props.onPresent(Math.max(0, index)))} />
           </>
         )
       }
       default:
         return (
           <>
-            <MenuItem label="글 고치기" keys="Enter" onClick={run(() => editor.editSelection())} />
+            <MenuItem label={t('text.edit')} keys="Enter" onClick={run(() => editor.editSelection())} />
             {isFlowShape(one) && (
-              <SubMenu label="도형 바꾸기">
+              <SubMenu label={t('shape.change')}>
                 {BASIC_SHAPES.map((s) => (
                   <MenuItem
                     key={s.kind}
                     label={s.label}
-                    onClick={run(() => editor.updateSelected('모양 바꾸기', (o) => (isShape(o) && isFlowShape(o) ? { ...o, shape: s.kind } : o)))}
+                    onClick={run(() => editor.updateSelected(t('shape.changeUndo'), (o) => (isShape(o) && isFlowShape(o) ? { ...o, shape: s.kind } : o)))}
                   />
                 ))}
               </SubMenu>
@@ -210,34 +211,34 @@ export function ContextMenu(props: Props) {
       <div ref={ref} className="bl-menu bl-context-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
         {paste}
         {!readOnly && (
-          <SubMenu label="여기에 추가">
+          <SubMenu label={t('board.addHere')}>
             {ADD_HERE.map((a) => (
               <MenuItem key={a.kind} label={a.label} keys={a.key} onClick={run(() => editor.addShapeAt(a.kind, board))} />
             ))}
             {props.onAddFile && (
               <>
                 <hr />
-                <MenuItem label="파일 넣기…" onClick={run(() => props.onAddFile?.(board))} />
+                <MenuItem label={t('file.addMenu')} onClick={run(() => props.onAddFile?.(board))} />
               </>
             )}
           </SubMenu>
         )}
-        <MenuItem label="모두 선택" keys="Ctrl+A" onClick={run(() => editor.selectAll())} />
+        <MenuItem label={t('edit.selectAll')} keys="Ctrl+A" onClick={run(() => editor.selectAll())} />
         <hr />
-        <SubMenu label="보드를 다른 형식으로 복사">
+        <SubMenu label={t('copy.boardAs')}>
           {COPY_AS.map((c) => (
             <MenuItem key={c.format} label={c.label} onClick={() => void copyBoardAs(c)} />
           ))}
         </SubMenu>
-        <MenuItem label="보드 위치 링크 복사" onClick={run(() => void editor.copyLink(true))} />
+        <MenuItem label={t('link.copyView')} onClick={run(() => void editor.copyLink(true))} />
         <hr />
-        <MenuItem label="확대" keys="Ctrl+=" onClick={run(() => editor.zoomBy(1.25))} />
-        <MenuItem label="축소" keys="Ctrl+-" onClick={run(() => editor.zoomBy(1 / 1.25))} />
-        <MenuItem label="100%로 보기" keys="Ctrl+0" onClick={run(() => editor.resetZoom())} />
-        <MenuItem label="화면 맞춤" keys="Shift+1" onClick={run(() => editor.zoomToFit(false))} />
+        <MenuItem label={t('view.zoomIn')} keys="Ctrl+=" onClick={run(() => editor.zoomBy(1.25))} />
+        <MenuItem label={t('view.zoomOut')} keys="Ctrl+-" onClick={run(() => editor.zoomBy(1 / 1.25))} />
+        <MenuItem label={t('view.actualSize')} keys="Ctrl+0" onClick={run(() => editor.resetZoom())} />
+        <MenuItem label={t('view.fit')} keys="Shift+1" onClick={run(() => editor.zoomToFit(false))} />
         <hr />
-        <MenuItem label="발표" keys="F5" onClick={run(() => props.onPresent(0))} />
-        {!readOnly && <MenuItem label="Mermaid 가져오기…" onClick={run(props.onImportMermaid)} />}
+        <MenuItem label={t('present')} keys="F5" onClick={run(() => props.onPresent(0))} />
+        {!readOnly && <MenuItem label={t('mermaid.importMenu')} onClick={run(props.onImportMermaid)} />}
       </div>
     )
   }

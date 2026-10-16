@@ -57,7 +57,8 @@ export async function saveSnapshot(storage: WorkspaceStorage, root: string, boar
 function sameBoardContent(a: string, b: string): boolean {
   if (a === b) return true
   try {
-    return JSON.stringify(JSON.parse(a).objects) === JSON.stringify(JSON.parse(b).objects)
+    const objectsOf = (text: string): unknown => (JSON.parse(text) as { objects?: unknown }).objects
+    return JSON.stringify(objectsOf(a)) === JSON.stringify(objectsOf(b))
   } catch {
     return false
   }

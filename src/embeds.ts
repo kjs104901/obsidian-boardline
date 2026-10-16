@@ -9,6 +9,7 @@ import { Component, MarkdownRenderChild, TFile, type MarkdownPostProcessorContex
 import { renderBoardPng } from '@boardline/core/board/boardFiles'
 import { themeMode } from '@boardline/core/theme/palette'
 import type BoardlinePlugin from './main'
+import { t } from '@boardline/core/i18n'
 
 const cache = new Map<string, Promise<string | null>>()
 
@@ -34,13 +35,13 @@ export function renderBoardEmbed(plugin: BoardlinePlugin, el: HTMLElement, file:
   el.addClass('bl-embed')
   const frame = el.createDiv({ cls: 'bl-embed-frame' })
   const title = frame.createDiv({ cls: 'bl-embed-title', text: file.basename })
-  title.setAttr('aria-label', '보드 열기')
+  title.setAttr('aria-label', t('embed.open'))
   const img = frame.createEl('img', { attr: { alt: file.basename } })
   const width = el.getAttr('width')
   if (width && /^\d+$/.test(width)) img.style.maxWidth = `${width}px`
   void pictureUrl(plugin, file).then((url) => {
     if (url) img.src = url
-    else frame.createDiv({ cls: 'bl-embed-empty', text: '빈 보드' })
+    else frame.createDiv({ cls: 'bl-embed-empty', text: t('common.emptyBoard') })
   })
   frame.addEventListener('click', (e) => {
     e.preventDefault()

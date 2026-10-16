@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
 import { CloseIcon } from './icons'
+import { t } from '@boardline/core/i18n'
 
 interface Props {
   editor: BoardEditor
@@ -40,17 +41,17 @@ export function SlidePanel({ editor, status, readOnly, onPresent, onClose }: Pro
   return (
     <div className="bl-slide-panel" onPointerDown={(e) => e.stopPropagation()}>
       <header>
-        <span>발표 순서</span>
-        <button title="처음부터 발표 (F5)" className="bl-slide-present" onClick={() => onPresent(0)}>
+        <span>{t('slides.title')}</span>
+        <button title={t('slides.presentAll')} className="bl-slide-present" onClick={() => onPresent(0)}>
           <PlayIcon />
-          발표
+          {t('present')}
         </button>
-        <button title="닫기" onClick={onClose}>
+        <button title={t('common.close')} onClick={onClose}>
           <CloseIcon />
         </button>
       </header>
       {sections.length === 0 ? (
-        <p className="bl-slide-empty">섹션이 없으면 보드 전체를 한 장으로 보여 줍니다. 섹션(.)으로 장을 나누면 여기에 차례로 나옵니다.</p>
+        <p className="bl-slide-empty">{t('slides.noSections')}</p>
       ) : (
         <ol className="bl-slide-list" onDragLeave={() => setOver(null)}>
           {sections.map((s, i) => (
@@ -82,9 +83,9 @@ export function SlidePanel({ editor, status, readOnly, onPresent, onClose }: Pro
               onClick={() => editor.showSection(s.id)}
             >
               <span className="bl-slide-number">{i + 1}</span>
-              <span className="bl-slide-title">{s.text.split('\n')[0].trim() || '제목 없는 섹션'}</span>
+              <span className="bl-slide-title">{s.text.split('\n')[0].trim() || t('slides.untitled')}</span>
               <button
-                title="여기서부터 발표"
+                title={t('slides.presentFrom')}
                 onClick={(e) => {
                   e.stopPropagation()
                   onPresent(i)
@@ -97,7 +98,7 @@ export function SlidePanel({ editor, status, readOnly, onPresent, onClose }: Pro
           {over === sections.length && dragging !== null && <li className="bl-slide-drop-end" />}
         </ol>
       )}
-      {sections.length > 1 && !readOnly && <p className="bl-slide-hint">끌어서 순서를 바꿉니다. 누르면 그 섹션으로 갑니다.</p>}
+      {sections.length > 1 && !readOnly && <p className="bl-slide-hint">{t('slides.dragHint')}</p>}
     </div>
   )
 }

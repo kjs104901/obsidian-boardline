@@ -53,6 +53,29 @@ describe('Mermaid import', () => {
     expect(d.subgraphs).toEqual([{ title: '묶음', nodes: ['A', 'B'] }])
   })
 
+  it('reads Mermaid 11 shape names and subroutines', () => {
+    const d = parseMermaid(
+      [
+        'flowchart TD',
+        '  a@{ shape: doc, label: "보고서, 최종" } --> b@{ shape: docs }',
+        '  b --> c[[하위 처리]]',
+        '  c --> d@{ shape: sl-rect, label: "입력" } --> e@{ shape: delay }',
+        '  e --> f@{ shape: curv-trap } --> g@{ shape: manual } --> h@{ shape: nothing-like-it }',
+      ].join('\n'),
+    ) as Flowchart
+    expect(d.nodes.map((n) => [n.id, n.shape, n.text, !!n.flipped])).toEqual([
+      ['a', 'document', '보고서, 최종', false],
+      ['b', 'documents', 'b', false],
+      ['c', 'subroutine', '하위 처리', false],
+      ['d', 'manual-input', '입력', false],
+      ['e', 'delay', 'e', false],
+      ['f', 'display', 'f', false],
+      ['g', 'trapezoid', 'g', true],
+      ['h', 'rect', 'h', false],
+    ])
+    expect(d.edges.map((e) => `${e.from}>${e.to}`)).toEqual(['a>b', 'b>c', 'c>d', 'd>e', 'e>f', 'f>g', 'g>h'])
+  })
+
   it('reads sequence diagrams', () => {
     const d = parseMermaid(
       ['sequenceDiagram', '  participant U as 사용자', '  actor S', '  U->>+S: 요청', '  S-->>-U: 응답', '  S->>S: 생각', '  Note over U: 무시', '  loop 반복', '  end'].join('\n'),
@@ -80,7 +103,7 @@ describe('Mermaid import', () => {
   })
 
   it('builds board objects', async () => {
-    const ctx = { autosize: (s: ShapeObject) => s, layout: async () => ({ positions: new Map(), sides: new Map() }) }
+    const ctx = { autosize: (s: ShapeObject) => s, layout: async () => ({ positions: new Map(), ends: new Map() }) }
     const flow = await buildDiagram(parseMermaid('graph TD\nA-->B\nsubgraph S\nA\nend')!, ctx)
     expect(flow.filter((o) => o.type === 'shape').map((o) => (o as ShapeObject).shape)).toEqual(['section', 'rect', 'rect'])
     const seq = await buildDiagram(parseMermaid('sequenceDiagram\nA->>B: x\nB->>B: y')!, ctx)

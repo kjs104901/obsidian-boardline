@@ -15,8 +15,18 @@ const NODE: Partial<Record<ShapeKind, [string, string]>> = {
   trapezoid: ['[/', '\\]'],
   hexagon: ['{{', '}}'],
   cylinder: ['[(', ')]'],
+  subroutine: ['[[', ']]'],
   sticky: ['[', ']'],
   text: ['[', ']'],
+}
+
+/** Shapes only Mermaid 11's `@{ shape: … }` syntax has. */
+const NAMED: Partial<Record<ShapeKind, string>> = {
+  document: 'doc',
+  documents: 'docs',
+  'manual-input': 'sl-rect',
+  delay: 'delay',
+  display: 'display',
 }
 
 /** Text inside a Mermaid label: quoted, with quotes and line breaks escaped. */
@@ -34,8 +44,14 @@ export function toMermaid(objects: BoardObject[]): string {
   const names = new Map(shapes.map((s, i) => [s.id, `n${i + 1}`]))
   const lines = ['flowchart TD']
   for (const s of shapes) {
+    const text = label(plainText(s.text) || ' ')
+    const named = NAMED[s.shape]
+    if (named) {
+      lines.push(`  ${names.get(s.id)}@{ shape: ${named}, label: ${text} }`)
+      continue
+    }
     const [open, close] = NODE[s.shape] ?? ['[', ']']
-    lines.push(`  ${names.get(s.id)}${open}${label(plainText(s.text) || ' ')}${close}`)
+    lines.push(`  ${names.get(s.id)}${open}${text}${close}`)
   }
   for (const c of objects.filter(isConnector)) {
     const a = names.get(endpointObjectId(c.from) ?? '')

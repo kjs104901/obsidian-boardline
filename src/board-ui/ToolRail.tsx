@@ -10,6 +10,8 @@ import { baseColor, PALETTE } from '@boardline/core/theme/palette'
 import { IconPicker } from './IconPicker'
 import { CloseIcon, EraserIcon, HandIcon, LassoIcon, MarkerIcon, MindmapIcon, PenIcon, SectionIcon, SelectIcon, ShapeIcon, StickyIcon, TableIcon, TextIcon } from './icons'
 import { BASIC_SHAPES, isBasicShape } from './shapeKinds'
+import { loadPref, savePref } from '@boardline/core/platform/prefs'
+import { t } from '@boardline/core/i18n'
 
 /** A flyout opened from its group button (drawing's opens by itself while drawing). */
 export type Flyout = 'shapes' | 'icons' | null
@@ -79,40 +81,36 @@ function IconToolIcon() {
 }
 
 const TOOLS_BEFORE: { tool: Tool; label: string; key: string; icon: ReactNode }[] = [
-  { tool: { kind: 'select' }, label: '선택', key: 'Esc', icon: <SelectIcon /> },
-  { tool: { kind: 'hand' }, label: '손 (화면 이동)', key: 'Space 누른 채 끌기', icon: <HandIcon /> },
+  { tool: { kind: 'select' }, get label() { return t('tool.select') }, key: 'Esc', icon: <SelectIcon /> },
+  { tool: { kind: 'hand' }, get label() { return t('tool.hand') }, get key() { return t('tool.handKey') }, icon: <HandIcon /> },
 ]
 
 const TOOLS_AFTER: { tool: Tool; label: string; key: string; icon: ReactNode }[] = [
-  { tool: { kind: 'shape', shape: 'sticky' }, label: '스티키 노트', key: 'N', icon: <StickyIcon /> },
-  { tool: { kind: 'shape', shape: 'text' }, label: '텍스트', key: 'T', icon: <TextIcon /> },
-  { tool: { kind: 'shape', shape: 'section' }, label: '섹션', key: '.', icon: <SectionIcon /> },
-  { tool: { kind: 'shape', shape: 'table' }, label: '표', key: 'E', icon: <TableIcon /> },
-  { tool: { kind: 'shape', shape: 'actor' }, label: '시퀀스 액터', key: 'Q', icon: <ActorIcon /> },
-  { tool: { kind: 'connector' }, label: '연결선', key: 'C', icon: <ConnectorIcon /> },
-  { tool: { kind: 'mindmap' }, label: '마인드맵', key: 'M', icon: <MindmapIcon /> },
+  { tool: { kind: 'shape', shape: 'sticky' }, get label() { return t('kind.sticky') }, key: 'N', icon: <StickyIcon /> },
+  { tool: { kind: 'shape', shape: 'text' }, get label() { return t('kind.text') }, key: 'T', icon: <TextIcon /> },
+  { tool: { kind: 'shape', shape: 'section' }, get label() { return t('kind.section') }, key: '.', icon: <SectionIcon /> },
+  { tool: { kind: 'shape', shape: 'table' }, get label() { return t('kind.table') }, key: 'E', icon: <TableIcon /> },
+  { tool: { kind: 'shape', shape: 'actor' }, get label() { return t('kind.actor') }, key: 'Q', icon: <ActorIcon /> },
+  { tool: { kind: 'connector' }, get label() { return t('kind.connector') }, key: 'C', icon: <ConnectorIcon /> },
+  { tool: { kind: 'mindmap' }, get label() { return t('kind.mindmap') }, key: 'M', icon: <MindmapIcon /> },
 ]
 
 type Pen = 'pen' | 'marker' | 'eraser' | 'lasso'
 
 const PENS: { pen: Pen; label: string; icon: ReactNode }[] = [
-  { pen: 'pen', label: '펜 (H)', icon: <PenIcon /> },
-  { pen: 'marker', label: '형광펜 (Shift+H)', icon: <MarkerIcon /> },
-  { pen: 'eraser', label: '지우개', icon: <EraserIcon /> },
-  { pen: 'lasso', label: '올가미 선택 (Alt+끌기)', icon: <LassoIcon /> },
+  { pen: 'pen', get label() { return t('tool.pen') }, icon: <PenIcon /> },
+  { pen: 'marker', get label() { return t('tool.marker') }, icon: <MarkerIcon /> },
+  { pen: 'eraser', get label() { return t('tool.eraser') }, icon: <EraserIcon /> },
+  { pen: 'lasso', get label() { return t('tool.lasso') }, icon: <LassoIcon /> },
 ]
 
 const LAST_KEY = 'boardline.lastTools'
 
 function readLast(): { shape: ShapeKind; pen: Pen } {
-  try {
-    const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? '{}')
-    return {
-      shape: typeof v.shape === 'string' && isBasicShape(v.shape) ? v.shape : 'rect',
-      pen: v.pen === 'marker' || v.pen === 'eraser' || v.pen === 'lasso' ? v.pen : 'pen',
-    }
-  } catch {
-    return { shape: 'rect', pen: 'pen' }
+  const v = (loadPref(LAST_KEY) ?? {}) as { shape?: unknown; pen?: unknown }
+  return {
+    shape: typeof v.shape === 'string' && isBasicShape(v.shape) ? v.shape : 'rect',
+    pen: v.pen === 'marker' || v.pen === 'eraser' || v.pen === 'lasso' ? v.pen : 'pen',
   }
 }
 
@@ -136,11 +134,7 @@ export function ToolRail({ editor, tool, flyout, onFlyout, linking, onLink, onAd
     const next = { shape: shape && isBasicShape(shape) ? shape : last.shape, pen: drawing ?? last.pen }
     if (next.shape === last.shape && next.pen === last.pen) return
     setLast(next)
-    try {
-      localStorage.setItem(LAST_KEY, JSON.stringify(next))
-    } catch {
-      // Only a convenience.
-    }
+    savePref(LAST_KEY, next)
   }, [shape, drawing])
 
   // Line the flyout up with its button, kept inside the board.
@@ -187,25 +181,25 @@ export function ToolRail({ editor, tool, flyout, onFlyout, linking, onLink, onAd
       <nav className="bl-toolbar">
         {TOOLS_BEFORE.map(plain)}
         <span className="bl-rail-sep" />
-        {groupButton('shapes', `도형: ${lastShapeInfo.label}${lastShapeInfo.key ? ` (${lastShapeInfo.key})` : ''}`, open === 'shapes' || (!!shape && isBasicShape(shape)), <ShapeIcon kind={last.shape} />, () => {
+        {groupButton('shapes', t('tool.shapes', lastShapeInfo.label, lastShapeInfo.key ? ` (${lastShapeInfo.key})` : ''), open === 'shapes' || (!!shape && isBasicShape(shape)), <ShapeIcon kind={last.shape} />, () => {
           arm({ kind: 'shape', shape: last.shape })
           onFlyout(flyout === 'shapes' ? null : 'shapes')
         })}
         {TOOLS_AFTER.map(plain)}
         <span className="bl-rail-sep" />
-        {groupButton('draw', '그리기 (H)', !!drawing, PENS.find((p) => p.pen === last.pen)?.icon, () => {
+        {groupButton('draw', t('tool.draw'), !!drawing, PENS.find((p) => p.pen === last.pen)?.icon, () => {
           onFlyout(null)
           arm(drawing ? { kind: 'select' } : { kind: 'draw', pen: last.pen })
         })}
-        <button className={linking ? 'active' : ''} title="링크 (K)" onClick={onLink}>
+        <button className={linking ? 'active' : ''} title={t('tool.link')} onClick={onLink}>
           <LinkToolIcon />
         </button>
         {onAddFile && (
-          <button title="파일 넣기 (노트, 그림, 보드, 캔버스)" onClick={onAddFile}>
+          <button title={t('tool.addFile')} onClick={onAddFile}>
             <NoteCardIcon />
           </button>
         )}
-        {groupButton('icons', '아이콘 (X)', open === 'icons' || shape === 'icon', <IconToolIcon />, () => onFlyout(flyout === 'icons' ? null : 'icons'))}
+        {groupButton('icons', t('tool.icons'), open === 'icons' || shape === 'icon', <IconToolIcon />, () => onFlyout(flyout === 'icons' ? null : 'icons'))}
       </nav>
 
       {open && (
@@ -237,7 +231,7 @@ export function ToolRail({ editor, tool, flyout, onFlyout, linking, onLink, onAd
                 </>
               )}
               <span className="bl-sep" />
-              <button title="그리기 끝내기 (Esc)" onClick={() => arm({ kind: 'select' })}>
+              <button title={t('tool.stopDrawing')} onClick={() => arm({ kind: 'select' })}>
                 <CloseIcon />
               </button>
             </>

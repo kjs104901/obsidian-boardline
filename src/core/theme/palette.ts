@@ -1,5 +1,6 @@
 import type { ColorKey, Deco } from '../board/model'
 import { luminance, mixColors, oklchToSrgb } from './color'
+import { t } from '../i18n'
 
 /** One color in one theme: lines and outlines, a solid fill, and the tint inside an outline. */
 interface Tone {
@@ -30,18 +31,18 @@ const gray = (stroke: number, fill: number) => ({ stroke: ok(stroke, 0, 0), fill
 
 /** Object colors in picker order: three neutrals, then nine hues around the wheel. */
 export const PALETTE: { key: ColorKey; name: string; light: Tone; dark: Tone }[] = [
-  { key: 'gray', name: '회색', light: gray(0.7, 0.92), dark: gray(0.62, 0.38) },
-  { key: 'light', name: '밝은 회색', light: gray(0.85, 0.96), dark: gray(0.42, 0.3) },
-  { key: 'ink', name: '먹색', light: gray(0.3, 0.3), dark: gray(0.9, 0.88) },
-  { key: 'red', name: '빨강', ...hue(25, 0.17) },
-  { key: 'orange', name: '주황', ...hue(55, 0.15) },
-  { key: 'yellow', name: '노랑', ...hue(88, 0.14, true) },
-  { key: 'green', name: '초록', ...hue(150, 0.13) },
-  { key: 'teal', name: '청록', ...hue(190, 0.1) },
-  { key: 'blue', name: '파랑', ...hue(250, 0.14) },
-  { key: 'indigo', name: '남색', ...hue(275, 0.15) },
-  { key: 'purple', name: '보라', ...hue(305, 0.15) },
-  { key: 'pink', name: '분홍', ...hue(350, 0.14) },
+  { key: 'gray', get name() { return t('color.gray') }, light: gray(0.7, 0.92), dark: gray(0.62, 0.38) },
+  { key: 'light', get name() { return t('color.light') }, light: gray(0.85, 0.96), dark: gray(0.42, 0.3) },
+  { key: 'ink', get name() { return t('color.ink') }, light: gray(0.3, 0.3), dark: gray(0.9, 0.88) },
+  { key: 'red', get name() { return t('color.red') }, ...hue(25, 0.17) },
+  { key: 'orange', get name() { return t('color.orange') }, ...hue(55, 0.15) },
+  { key: 'yellow', get name() { return t('color.yellow') }, ...hue(88, 0.14, true) },
+  { key: 'green', get name() { return t('color.green') }, ...hue(150, 0.13) },
+  { key: 'teal', get name() { return t('color.teal') }, ...hue(190, 0.1) },
+  { key: 'blue', get name() { return t('color.blue') }, ...hue(250, 0.14) },
+  { key: 'indigo', get name() { return t('color.indigo') }, ...hue(275, 0.15) },
+  { key: 'purple', get name() { return t('color.purple') }, ...hue(305, 0.15) },
+  { key: 'pink', get name() { return t('color.pink') }, ...hue(350, 0.14) },
 ]
 
 const BY_KEY = new Map(PALETTE.map((p) => [p.key, p]))

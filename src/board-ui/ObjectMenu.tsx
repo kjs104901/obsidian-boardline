@@ -4,42 +4,43 @@
 import type { ReactNode } from 'react'
 import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
 import { isFlowShape, isMindmap, isShape } from '@boardline/core/board/model'
+import { t } from '@boardline/core/i18n'
 
 export const ALIGN: { how: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom'; label: string; key: string }[] = [
-  { how: 'left', label: '왼쪽 맞춤', key: 'Alt+A' },
-  { how: 'hcenter', label: '가로 가운데 맞춤', key: 'Alt+H' },
-  { how: 'right', label: '오른쪽 맞춤', key: 'Alt+D' },
-  { how: 'top', label: '위쪽 맞춤', key: 'Alt+W' },
-  { how: 'vcenter', label: '세로 가운데 맞춤', key: 'Alt+V' },
-  { how: 'bottom', label: '아래쪽 맞춤', key: 'Alt+S' },
+  { how: 'left', get label() { return t('align.left') }, key: 'Alt+A' },
+  { how: 'hcenter', get label() { return t('align.centerH') }, key: 'Alt+H' },
+  { how: 'right', get label() { return t('align.right') }, key: 'Alt+D' },
+  { how: 'top', get label() { return t('align.top') }, key: 'Alt+W' },
+  { how: 'vcenter', get label() { return t('align.centerV') }, key: 'Alt+V' },
+  { how: 'bottom', get label() { return t('align.bottom') }, key: 'Alt+S' },
 ]
 
 export const COPY_AS: { format: Parameters<BoardEditor['copyAs']>[0]; label: string; key?: string; done: string }[] = [
-  { format: 'png', label: 'PNG', key: 'Ctrl+Shift+C', done: 'PNG로 복사했습니다' },
-  { format: 'png-bg', label: 'PNG (배경 포함)', done: '배경 포함 PNG로 복사했습니다' },
-  { format: 'png-dark', label: 'PNG (다크 모드)', done: '다크 모드 PNG로 복사했습니다' },
-  { format: 'png-light', label: 'PNG (라이트 모드)', done: '라이트 모드 PNG로 복사했습니다' },
-  { format: 'svg', label: 'SVG', done: 'SVG로 복사했습니다' },
-  { format: 'mermaid', label: 'Mermaid', done: 'Mermaid로 복사했습니다' },
-  { format: 'markdown', label: 'Markdown', done: 'Markdown으로 복사했습니다' },
+  { format: 'png', label: 'PNG', key: 'Ctrl+Shift+C', get done() { return t('copy.donePng') } },
+  { format: 'png-bg', get label() { return t('copy.pngBackground') }, get done() { return t('copy.donePngBackground') } },
+  { format: 'png-dark', get label() { return t('copy.pngDark') }, get done() { return t('copy.donePngDark') } },
+  { format: 'png-light', get label() { return t('copy.pngLight') }, get done() { return t('copy.donePngLight') } },
+  { format: 'svg', label: 'SVG', get done() { return t('copy.doneSvg') } },
+  { format: 'mermaid', label: 'Mermaid', get done() { return t('copy.doneMermaid') } },
+  { format: 'markdown', label: 'Markdown', get done() { return t('copy.doneMarkdown') } },
 ]
 
 type TableOp = Parameters<BoardEditor['tableEdit']>[0]
 
 /** The table menu; `sep` starts a new group. */
 export const TABLE_OPS: { op: TableOp; label: string; key?: string; sep?: boolean }[] = [
-  { op: 'rowAbove', label: '위에 행 추가' },
-  { op: 'rowBelow', label: '아래에 행 추가' },
-  { op: 'colLeft', label: '왼쪽에 열 추가' },
-  { op: 'colRight', label: '오른쪽에 열 추가' },
-  { op: 'rowUp', label: '행을 위로', key: 'Alt+↑', sep: true },
-  { op: 'rowDown', label: '행을 아래로', key: 'Alt+↓' },
-  { op: 'colBack', label: '열을 왼쪽으로', key: 'Alt+←' },
-  { op: 'colOn', label: '열을 오른쪽으로', key: 'Alt+→' },
-  { op: 'deleteRow', label: '행 삭제', sep: true },
-  { op: 'deleteCol', label: '열 삭제' },
-  { op: 'fit', label: '열 너비 맞추기', sep: true },
-  { op: 'header', label: '첫 행을 머리글로' },
+  { op: 'rowAbove', get label() { return t('table.rowAbove') } },
+  { op: 'rowBelow', get label() { return t('table.rowBelow') } },
+  { op: 'colLeft', get label() { return t('table.colLeft') } },
+  { op: 'colRight', get label() { return t('table.colRight') } },
+  { op: 'rowUp', get label() { return t('table.rowUp') }, key: 'Alt+↑', sep: true },
+  { op: 'rowDown', get label() { return t('table.rowDown') }, key: 'Alt+↓' },
+  { op: 'colBack', get label() { return t('table.colLeftMove') }, key: 'Alt+←' },
+  { op: 'colOn', get label() { return t('table.colRightMove') }, key: 'Alt+→' },
+  { op: 'deleteRow', get label() { return t('table.deleteRow') }, sep: true },
+  { op: 'deleteCol', get label() { return t('table.deleteCol') } },
+  { op: 'fit', get label() { return t('table.fitColumn') }, sep: true },
+  { op: 'header', get label() { return t('table.headerRow') } },
 ]
 
 /**
@@ -95,85 +96,85 @@ export function ObjectMenuItems({ editor, status, done, onNotice, onLinkDialog, 
     fn()
     done()
   }
-  const paste = onPaste ? <MenuItem label="붙여넣기" keys="Ctrl+V" disabled={editor.isReadOnly()} onClick={run(onPaste)} /> : null
+  const paste = onPaste ? <MenuItem label={t('edit.paste')} keys="Ctrl+V" disabled={editor.isReadOnly()} onClick={run(onPaste)} /> : null
   const copyAs = async (c: (typeof COPY_AS)[number]) => {
     done()
     const ok = await editor.copyAs(c.format)
-    onNotice?.(ok ? c.done : '복사하지 못했습니다')
+    onNotice?.(ok ? c.done : t('copy.failed'))
   }
   const grouped = shapes.length >= 2 && shapes.every((s) => s.groupId && s.groupId === shapes[0].groupId)
   return (
     <>
-      <MenuItem label="복사" keys="Ctrl+C" onClick={run(() => editor.copySelection(false))} />
-      <MenuItem label="잘라내기" keys="Ctrl+X" disabled={locked} onClick={run(() => editor.copySelection(true))} />
+      <MenuItem label={t('edit.copy')} keys="Ctrl+C" onClick={run(() => editor.copySelection(false))} />
+      <MenuItem label={t('edit.cut')} keys="Ctrl+X" disabled={locked} onClick={run(() => editor.copySelection(true))} />
       {paste}
-      <MenuItem label="복제" keys="Ctrl+D" onClick={run(() => editor.duplicateSelection())} />
-      <MenuItem label="삭제" keys="Delete" disabled={locked} onClick={run(() => editor.deleteSelection())} />
+      <MenuItem label={t('edit.duplicate')} keys="Ctrl+D" onClick={run(() => editor.duplicateSelection())} />
+      <MenuItem label={t('edit.delete')} keys="Delete" disabled={locked} onClick={run(() => editor.deleteSelection())} />
       <hr />
-      <SubMenu label="다른 형식으로 복사">
+      <SubMenu label={t('copy.as')}>
         {COPY_AS.map((c) => (
           <MenuItem key={c.format} label={c.label} keys={c.key} onClick={() => void copyAs(c)} />
         ))}
       </SubMenu>
-      {onExportNote && <MenuItem label="노트로 내보내기" onClick={run(onExportNote)} />}
+      {onExportNote && <MenuItem label={t('export.note')} onClick={run(onExportNote)} />}
       <hr />
-      <SubMenu label="순서">
-        <MenuItem label="앞으로" keys="Ctrl+Alt+]" onClick={run(() => editor.reorder('forward'))} />
-        <MenuItem label="맨 앞으로" keys="Alt+]" onClick={run(() => editor.reorder('front'))} />
-        <MenuItem label="뒤로" keys="Ctrl+Alt+[" onClick={run(() => editor.reorder('backward'))} />
-        <MenuItem label="맨 뒤로" keys="Alt+[" onClick={run(() => editor.reorder('back'))} />
+      <SubMenu label={t('order')}>
+        <MenuItem label={t('order.forward')} keys="Ctrl+Alt+]" onClick={run(() => editor.reorder('forward'))} />
+        <MenuItem label={t('order.front')} keys="Alt+]" onClick={run(() => editor.reorder('front'))} />
+        <MenuItem label={t('order.backward')} keys="Ctrl+Alt+[" onClick={run(() => editor.reorder('backward'))} />
+        <MenuItem label={t('order.back')} keys="Alt+[" onClick={run(() => editor.reorder('back'))} />
       </SubMenu>
       {shapes.length >= 2 && (
-        <SubMenu label="맞춤">
+        <SubMenu label={t('align')}>
           {ALIGN.map((a) => (
             <MenuItem key={a.how} label={a.label} keys={a.key} onClick={run(() => editor.align(a.how))} />
           ))}
           <hr />
-          <MenuItem label="가로 간격 같게" disabled={shapes.length < 3} onClick={run(() => editor.distribute('h'))} />
-          <MenuItem label="세로 간격 같게" disabled={shapes.length < 3} onClick={run(() => editor.distribute('v'))} />
+          <MenuItem label={t('align.spaceH')} disabled={shapes.length < 3} onClick={run(() => editor.distribute('h'))} />
+          <MenuItem label={t('align.spaceV')} disabled={shapes.length < 3} onClick={run(() => editor.distribute('v'))} />
         </SubMenu>
       )}
       {!locked && flow.length > 0 && (
-        <SubMenu label="자동 정렬">
-          <MenuItem label="위에서 아래로" keys="Shift+Alt+V" onClick={run(() => void editor.autoLayout('DOWN'))} />
-          <MenuItem label="왼쪽에서 오른쪽으로" keys="Shift+Alt+H" onClick={run(() => void editor.autoLayout('RIGHT'))} />
+        <SubMenu label={t('layout.auto')}>
+          <MenuItem label={t('layout.down')} keys="Shift+Alt+V" onClick={run(() => void editor.autoLayout('DOWN'))} />
+          <MenuItem label={t('layout.right')} keys="Shift+Alt+H" onClick={run(() => void editor.autoLayout('RIGHT'))} />
         </SubMenu>
       )}
-      {shapes.length >= 2 && <MenuItem label={grouped ? '그룹 해제' : '그룹'} keys={grouped ? 'Ctrl+Shift+G' : 'Ctrl+G'} onClick={run(() => editor.setGroup(!grouped))} />}
-      <MenuItem label={locked ? '잠금 해제' : '잠금'} keys="Shift+L" onClick={run(() => editor.toggleLock())} />
+      {shapes.length >= 2 && <MenuItem label={grouped ? t('group.ungroup') : t('group.group')} keys={grouped ? 'Ctrl+Shift+G' : 'Ctrl+G'} onClick={run(() => editor.setGroup(!grouped))} />}
+      <MenuItem label={locked ? t('lock.unlock') : t('lock.lock')} keys="Shift+L" onClick={run(() => editor.toggleLock())} />
       <hr />
-      <SubMenu label="스타일">
+      <SubMenu label={t('style')}>
         <MenuItem
-          label="스타일 복사"
+          label={t('style.copy')}
           keys="Ctrl+Alt+C"
           onClick={run(() => {
-            if (editor.copyStyle()) onNotice?.('스타일을 복사했습니다')
+            if (editor.copyStyle()) onNotice?.(t('style.copied'))
           })}
         />
-        <MenuItem label="스타일 붙여넣기" keys="Ctrl+Alt+V" disabled={locked || !editor.canPasteStyle()} onClick={run(() => editor.pasteStyle())} />
+        <MenuItem label={t('style.paste')} keys="Ctrl+Alt+V" disabled={locked || !editor.canPasteStyle()} onClick={run(() => editor.pasteStyle())} />
         <MenuItem
-          label="기본 스타일로 저장"
+          label={t('style.saveDefault')}
           keys="Ctrl+Shift+D"
           disabled={!single || isMindmap(single)}
           onClick={run(() => {
-            if (editor.saveDefaultStyle()) onNotice?.('새로 만드는 객체에 이 스타일을 씁니다')
+            if (editor.saveDefaultStyle()) onNotice?.(t('style.savedDefault'))
           })}
         />
       </SubMenu>
-      <SubMenu label="링크">
+      <SubMenu label={t('link')}>
         {linkable.length > 0 && (
           <MenuItem
-            label={linkable.some((s) => s.link) ? '링크 바꾸기…' : '링크 걸기…'}
+            label={linkable.some((s) => s.link) ? t('link.changeMenu') : t('link.setMenu')}
             disabled={locked}
             onClick={run(() => onLinkDialog?.('shape', undefined, linkable.find((s) => s.link)?.link))}
           />
         )}
-        {linkable.some((s) => s.link) && <MenuItem label="링크 없애기" disabled={locked} onClick={run(() => editor.setLink(null))} />}
-        <MenuItem label="객체 링크 복사" keys="Ctrl+L" disabled={status.selected.length !== 1} onClick={run(() => void editor.copyLink(false))} />
-        <MenuItem label="보드 위치 링크 복사" onClick={run(() => void editor.copyLink(true))} />
+        {linkable.some((s) => s.link) && <MenuItem label={t('link.remove')} disabled={locked} onClick={run(() => editor.setLink(null))} />}
+        <MenuItem label={t('link.copyObject')} keys="Ctrl+L" disabled={status.selected.length !== 1} onClick={run(() => void editor.copyLink(false))} />
+        <MenuItem label={t('link.copyView')} onClick={run(() => void editor.copyLink(true))} />
       </SubMenu>
-      <MenuItem label="섹션으로 감싸기" onClick={run(() => editor.wrapInSection())} />
-      <MenuItem label="격자에 맞추기" disabled={locked || shapes.length === 0} onClick={run(() => editor.snapSelectionToGrid())} />
+      <MenuItem label={t('section.wrap')} onClick={run(() => editor.wrapInSection())} />
+      <MenuItem label={t('grid.snap')} disabled={locked || shapes.length === 0} onClick={run(() => editor.snapSelectionToGrid())} />
     </>
   )
 }

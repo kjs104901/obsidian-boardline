@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BoardEditor } from '@boardline/core/engine/editor'
 import { ArrowDownIcon, ArrowUpIcon, ChevronIcon, CloseIcon } from './icons'
+import { t } from '@boardline/core/i18n'
 
 interface Props {
   editor: BoardEditor
@@ -55,7 +56,7 @@ export function FindBar({ editor, initialQuery, replace = false, readOnly = fals
 
   const replaceIn = (ids: string[]) => {
     const count = editor.replaceText(ids, query, replacement)
-    onNotice?.(count ? `${count}곳을 바꿨습니다` : '바꿀 곳이 없습니다 (잠긴 객체는 그대로 둡니다)')
+    onNotice?.(count ? t('find.replaced', count) : t('find.nothingToReplace'))
     setRound((r) => r + 1)
     // The next match comes forward after the current one is replaced.
     const rest = editor.findMatches(query)
@@ -79,10 +80,10 @@ export function FindBar({ editor, initialQuery, replace = false, readOnly = fals
         {!readOnly && (
           <button
             className="bl-find-toggle"
-            title={replacing ? '바꾸기 닫기' : '바꾸기 (Ctrl+H)'}
+            title={replacing ? t('find.closeReplace') : t('find.openReplace')}
             onClick={() => {
               setReplacing((v) => !v)
-              setTimeout(() => (replacing ? inputRef : replaceRef).current?.focus())
+              window.setTimeout(() => (replacing ? inputRef : replaceRef).current?.focus())
             }}
           >
             <ChevronIcon open={replacing} />
@@ -91,7 +92,7 @@ export function FindBar({ editor, initialQuery, replace = false, readOnly = fals
         <input
           ref={inputRef}
           value={query}
-          placeholder="보드에서 찾기"
+          placeholder={t('find.placeholder')}
           onChange={(e) => {
             setRound(0)
             setQuery(e.target.value)
@@ -99,14 +100,14 @@ export function FindBar({ editor, initialQuery, replace = false, readOnly = fals
           }}
           onKeyDown={(e) => onKey(e, () => step(e.shiftKey ? -1 : 1))}
         />
-        <span className="bl-find-count">{query.trim() ? (found.length ? `${index + 1} / ${found.length}` : '없음') : ''}</span>
-        <button title="이전 (Shift+Enter)" disabled={found.length === 0} onClick={() => step(-1)}>
+        <span className="bl-find-count">{query.trim() ? (found.length ? `${index + 1} / ${found.length}` : t('find.none')) : ''}</span>
+        <button title={t('find.prev')} disabled={found.length === 0} onClick={() => step(-1)}>
           <ArrowUpIcon />
         </button>
-        <button title="다음 (Enter)" disabled={found.length === 0} onClick={() => step(1)}>
+        <button title={t('find.next')} disabled={found.length === 0} onClick={() => step(1)}>
           <ArrowDownIcon />
         </button>
-        <button title="닫기 (Esc)" onClick={onClose}>
+        <button title={t('common.closeEsc')} onClick={onClose}>
           <CloseIcon />
         </button>
       </div>
@@ -116,16 +117,16 @@ export function FindBar({ editor, initialQuery, replace = false, readOnly = fals
           <input
             ref={replaceRef}
             value={replacement}
-            placeholder="바꿀 내용"
+            placeholder={t('find.replaceWith')}
             autoFocus={replace}
             onChange={(e) => setReplacement(e.target.value)}
             onKeyDown={(e) => onKey(e, () => found.length && replaceIn([found[index]]))}
           />
-          <button className="bl-find-text" title="이 항목에서 바꾸기 (Enter)" disabled={found.length === 0} onClick={() => replaceIn([found[index]])}>
-            바꾸기
+          <button className="bl-find-text" title={t('find.replaceOne')} disabled={found.length === 0} onClick={() => replaceIn([found[index]])}>
+            {t('find.replace')}
           </button>
-          <button className="bl-find-text" title="찾은 곳을 모두 바꾸기" disabled={found.length === 0} onClick={() => replaceIn(found)}>
-            모두
+          <button className="bl-find-text" title={t('find.replaceAllTitle')} disabled={found.length === 0} onClick={() => replaceIn(found)}>
+            {t('find.replaceAll')}
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@
 
 import { normalizePath, type App, type TFile } from 'obsidian'
 import type { WorkspaceStorage } from '@boardline/core/platform/storage'
+import { t } from '@boardline/core/i18n'
 
 const hidden = (path: string) => path.split('/').some((part) => part.startsWith('.'))
 
@@ -22,7 +23,7 @@ export class VaultStorage implements WorkspaceStorage {
     const p = normalizePath(path)
     if (hidden(p)) return this.vault.adapter.read(p)
     const f = this.file(p)
-    if (!f) throw new Error(`파일이 없습니다: ${p}`)
+    if (!f) throw new Error(t('file.missing', p))
     return this.vault.read(f)
   }
 
@@ -42,7 +43,7 @@ export class VaultStorage implements WorkspaceStorage {
       return
     }
     const f = this.file(p)
-    if (f) await this.vault.modify(f, contents)
+    if (f) await this.vault.process(f, () => contents)
     else await this.vault.create(p, contents)
   }
 
@@ -61,7 +62,7 @@ export class VaultStorage implements WorkspaceStorage {
 
   async removeAppFile(_root: string, path: string): Promise<void> {
     const p = normalizePath(path)
-    if (!p.startsWith('.boardline/')) throw new Error(`앱 파일이 아닙니다: ${p}`)
+    if (!p.startsWith('.boardline/')) throw new Error(t('file.notAppFile', p))
     if (await this.vault.adapter.exists(p)) await this.vault.adapter.remove(p)
   }
 

@@ -22,6 +22,7 @@ import { Viewport } from './viewport'
 import { richSvg } from './richLayout'
 import { NOTE_FADE, NOTE_PADDING, noteDrawing, type NoteView } from './noteCard'
 import { fontCss } from './text'
+import { t } from '../i18n'
 
 export interface ExportScene {
   /** Objects to draw, in z order. */
@@ -76,7 +77,7 @@ export async function exportPng(
     if (mode && mode !== current) setThemeMode(current)
   }
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  if (!blob) throw new Error('PNG를 만들지 못했습니다')
+  if (!blob) throw new Error(t('export.pngFailed'))
   return new Uint8Array(await blob.arrayBuffer())
 }
 

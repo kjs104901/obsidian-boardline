@@ -4,6 +4,7 @@ import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api'
 import { updateOp, type BoardDocument, type Op } from '../board/document'
 import { FLOW_SHAPES, endpointObjectId, isConnector, isShape, type BoardObject, type ConnectorObject, type ShapeKind, type ShapeObject, type Side } from '../board/model'
 import { snap, type Point, type Rect } from './geometry'
+import { positionOn } from './outline'
 
 export type LayoutDirection = 'DOWN' | 'RIGHT'
 
@@ -16,14 +17,27 @@ const LAYOUT_OPTIONS = {
   'elk.spacing.edgeNode': '20',
   'elk.spacing.edgeEdge': '20',
   'elk.layered.spacing.edgeEdgeBetweenLayers': '20',
+  // A loop goes back along the lines as drawn: walking from the start, the line that returns to
+  // a shape already passed is the one turned around (ELK's default can flip the step before it,
+  // putting a "Looks right?" check above what it checks).
+  'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
+}
+
+/** Where a connector end attaches after the layout: a side, and the spot along it when not its middle. */
+export interface LayoutEnd {
+  side: Side
+  at?: number
 }
 
 export interface LayoutResult {
   /** New top-left of each shape. */
   positions: Map<string, Point>
-  /** Sides each connector's ends attach to after the layout. */
-  sides: Map<string, { from: Side; to: Side }>
+  /** Where each connector's ends attach after the layout (where ELK routed them). */
+  ends: Map<string, { from: LayoutEnd; to: LayoutEnd }>
 }
+
+/** Ends kept along a side stay this far (board px) from its corners. */
+const END_CORNER_MARGIN = 12
 
 /**
  * Lay out `shapes` along `direction`; `connectors` must have both ends on those shapes.
@@ -54,16 +68,45 @@ export async function autoLayout(shapes: ShapeObject[], connectors: ConnectorObj
   const positions = new Map<string, Point>()
   for (const [id, r] of placed) positions.set(id, { x: snap(r.x + dx), y: snap(r.y + dy) })
 
-  // Re-attach each end to the side nearest to where ELK routed it.
-  const sides = new Map<string, { from: Side; to: Side }>()
-  for (const e of (out.edges ?? []) as ElkExtendedEdge[]) {
+  // Re-attach each end where ELK routed it: the nearest side, and the spot along it. ELK spreads
+  // the ends that share a side, which keeps lines into and out of a shape (a loop back up a
+  // flowchart, say) apart. The spots move with the shapes and onto the grid, so a line ELK drew
+  // straight stays straight; ends that would land on the same grid point keep ELK's spacing.
+  type Spot = { edge: string; end: 'from' | 'to'; shape: string; side: Side; exact: number }
+  const spots: Spot[] = []
+  for (const e of (out.edges ?? [])) {
     const section = e.sections?.[0]
-    const a = placed.get(e.sources[0])
-    const b = placed.get(e.targets[0])
-    if (!section || !a || !b) continue
-    sides.set(e.id, { from: nearestSide(a, section.startPoint), to: nearestSide(b, section.endPoint) })
+    if (!section) continue
+    for (const [end, shape, p] of [['from', e.sources[0], section.startPoint], ['to', e.targets[0], section.endPoint]] as const) {
+      const r = placed.get(shape)
+      if (!r) continue
+      const side = nearestSide(r, p)
+      spots.push({ edge: e.id, end, shape, side, exact: side === 'top' || side === 'bottom' ? p.x + dx : p.y + dy })
+    }
   }
-  return { positions, sides }
+  const crowded = new Set<string>()
+  const taken = new Set<string>()
+  for (const s of spots) {
+    const key = `${s.shape} ${s.side} ${snap(s.exact)}`
+    if (taken.has(key)) crowded.add(`${s.shape} ${s.side}`)
+    taken.add(key)
+  }
+  const sizes = new Map(shapes.map((s) => [s.id, s]))
+  const ends = new Map<string, { from: LayoutEnd; to: LayoutEnd }>()
+  for (const s of spots) {
+    const shape = sizes.get(s.shape)
+    const p = positions.get(s.shape)
+    if (!shape || !p) continue
+    const along = crowded.has(`${s.shape} ${s.side}`) ? s.exact : snap(s.exact)
+    const point = s.side === 'top' || s.side === 'bottom' ? { x: along, y: 0 } : { x: 0, y: along }
+    const at = Math.round(positionOn({ ...shape, x: p.x, y: p.y }, s.side, point, END_CORNER_MARGIN) * 1e4) / 1e4
+    const end: LayoutEnd = Math.abs(at - 0.5) < 1e-3 ? { side: s.side } : { side: s.side, at }
+    const pair = ends.get(s.edge) ?? ({} as { from: LayoutEnd; to: LayoutEnd })
+    pair[s.end] = end
+    ends.set(s.edge, pair)
+  }
+  for (const [id, pair] of ends) if (!pair.from || !pair.to) ends.delete(id)
+  return { positions, ends }
 }
 
 function bounds(rects: Rect[]): Rect {
@@ -87,7 +130,7 @@ export function nearestSide(r: Rect, p: Point): Side {
 export const LAYOUT_KINDS: ShapeKind[] = [...FLOW_SHAPES, 'sticky', 'icon']
 
 /**
- * The edits "자동 정렬" makes on a board. `seed` picks what moves: two or more shapes as given,
+ * The edits "Auto layout" makes on a board. `seed` picks what moves: two or more shapes as given,
  * one shape with everything connected to it, none: every connected shape on the board.
  * Locked shapes stay. Empty when there are fewer than two shapes to arrange.
  */
@@ -136,10 +179,10 @@ export async function layoutOps(doc: BoardDocument, seed: string[], direction: L
   }
   for (const c of inner) {
     const cur = doc.get(c.id)
-    const sides = result.sides.get(c.id)
-    if (!isConnector(cur) || !sides || !('objectId' in cur.from) || !('objectId' in cur.to)) continue
+    const ends = result.ends.get(c.id)
+    if (!isConnector(cur) || !ends || !('objectId' in cur.from) || !('objectId' in cur.to)) continue
     const { pins: _pins, ...rest } = cur
-    ops.push(updateOp(cur, { ...rest, from: { objectId: cur.from.objectId, side: sides.from }, to: { objectId: cur.to.objectId, side: sides.to } }))
+    ops.push(updateOp(cur, { ...rest, from: { objectId: cur.from.objectId, ...ends.from }, to: { objectId: cur.to.objectId, ...ends.to } }))
   }
   return ops
 }

@@ -15,7 +15,7 @@ function Icon({ size = 16, children }: { size?: number; children: ReactNode }) {
 
 /** Outline of a shape kind, drawn from the same path data as the board. */
 export function ShapeIcon({ kind, size = 18 }: { kind: ShapeKind; size?: number }) {
-  const wide = ['rect', 'pill', 'parallelogram', 'parallelogram-flip', 'trapezoid', 'hexagon', 'cloud'].includes(kind)
+  const wide = ['rect', 'pill', 'parallelogram', 'parallelogram-flip', 'trapezoid', 'hexagon', 'cloud', 'document', 'documents', 'subroutine', 'manual-input', 'delay', 'display'].includes(kind)
   const r = wide ? { x: 2, y: 6, w: 20, h: 12 } : { x: 4, y: 3, w: 16, h: 18 }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">

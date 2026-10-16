@@ -21,7 +21,8 @@ async function iconModule(which) {
   if (!['regular', 'fill', 'duotone'].includes(which)) throw new Error('unknown icon set ' + which)
   const dir = path.join(PKG, 'assets', which)
   const out = {}
-  for (const file of fs.readdirSync(dir)) {
+  // Sorted: directory order differs between file systems, and the build must come out the same everywhere.
+  for (const file of fs.readdirSync(dir).sort()) {
     const name = file.replace(/(-fill|-duotone)?\.svg$/, '')
     const svg = fs.readFileSync(path.join(dir, file), 'utf8')
     // Translucent (duotone) layers are marked with a leading "~".

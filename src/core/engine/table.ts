@@ -260,7 +260,7 @@ export function parseGrid(text: string, single = false): string[][] | null {
         // An escaped \| stays in its cell (set aside while splitting: no lookbehind on older iOS).
         .replace(/\\\|/g, '\u0000')
         .split('|')
-        .map((c) => c.trim().replace(/\u0000/g, '|'))
+        .map((c) => c.trim().replaceAll('\u0000', '|'))
     return [split(lines[0]), ...lines.slice(2).map(split)]
   }
   if (lines.some((l) => l.includes('\t'))) return lines.map((l) => l.split('\t').map((c) => c.trim()))

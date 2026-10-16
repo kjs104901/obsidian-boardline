@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createConnector, createShape } from '../board/model'
 import { toMermaid } from './mermaid'
+import { parseMermaid, type Flowchart } from '../board/mermaidImport'
 
 describe('copy as Mermaid', () => {
   it('names shapes in reading order and keeps labels, shapes and line styles', () => {
@@ -21,5 +22,20 @@ describe('copy as Mermaid', () => {
         '',
       ].join('\n'),
     )
+  })
+})
+
+describe('Mermaid 11 shapes', () => {
+  it('writes the shapes only the new syntax has, and reads them back', () => {
+    const doc = { ...createShape('document', 0, 0, 1), text: '보고서' }
+    const sub = { ...createShape('subroutine', 0, 200, 2), text: '하위' }
+    const line = createConnector({ objectId: doc.id }, { objectId: sub.id }, 3)
+    const text = toMermaid([doc, sub, line])
+    expect(text).toBe('flowchart TD\n  n1@{ shape: doc, label: "보고서" }\n  n2[["하위"]]\n  n1 --> n2\n')
+    const back = parseMermaid(text) as Flowchart
+    expect(back.nodes.map((n) => [n.shape, n.text])).toEqual([
+      ['document', '보고서'],
+      ['subroutine', '하위'],
+    ])
   })
 })

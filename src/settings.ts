@@ -1,8 +1,10 @@
+/* global __THIRD_PARTY_NOTICES__ -- the licenses text, put in by the build (esbuild.config.mjs) */
 import { PluginSettingTab, Setting, type App } from 'obsidian'
 import type BoardlinePlugin from './main'
+import { t } from '@boardline/core/i18n'
 
 export interface BoardlineSettings {
-  /** Where "새 보드" puts the file: the vault's top, next to the open file, or a set folder. */
+  /** Where "New board" puts the file: the vault's top, next to the open file, or a set folder. */
   newBoardLocation: 'root' | 'current' | 'folder'
   newBoardFolder: string
   /** Keep X.board.png next to each board (for apps that can't draw boards). */
@@ -29,11 +31,11 @@ export class BoardlineSettingTab extends PluginSettingTab {
     const s = this.plugin.settings
 
     new Setting(containerEl)
-      .setName('새 보드 위치')
-      .setDesc('명령이나 리본으로 만드는 보드를 둘 곳. 파일 탐색기에서 폴더를 오른쪽 클릭해 만들면 그 폴더에 만듭니다.')
+      .setName(t('settings.newBoardFolder'))
+      .setDesc(t('settings.newBoardFolderDesc'))
       .addDropdown((d) =>
         d
-          .addOptions({ current: '지금 연 파일과 같은 폴더', root: '보관함 최상위', folder: '아래 폴더' })
+          .addOptions({ current: t('settings.folderCurrent'), root: t('settings.folderRoot'), folder: t('settings.folderFixed') })
           .setValue(s.newBoardLocation)
           .onChange(async (v) => {
             s.newBoardLocation = v as BoardlineSettings['newBoardLocation']
@@ -42,9 +44,9 @@ export class BoardlineSettingTab extends PluginSettingTab {
           }),
       )
     if (s.newBoardLocation === 'folder') {
-      new Setting(containerEl).setName('보드 폴더').addText((t) =>
-        t
-          .setPlaceholder('예: Boards')
+      new Setting(containerEl).setName(t('settings.boardFolder')).addText((text) =>
+        text
+          .setPlaceholder(t('settings.boardFolderPlaceholder'))
           .setValue(s.newBoardFolder)
           .onChange(async (v) => {
             s.newBoardFolder = v.trim().replace(/^\/+|\/+$/g, '')
@@ -53,8 +55,8 @@ export class BoardlineSettingTab extends PluginSettingTab {
       )
     }
     new Setting(containerEl)
-      .setName('보드 그림 파일 함께 두기')
-      .setDesc('보드를 고칠 때마다 옆에 "이름.board.png"를 다시 그립니다. Obsidian 안의 노트는 보드를 직접 보여 주므로 필요 없고, 보드를 그리지 못하는 다른 앱이나 게시용입니다.')
+      .setName(t('settings.keepPicture'))
+      .setDesc(t('settings.keepPictureDesc'))
       .addToggle((t) =>
         t.setValue(s.keepPicture).onChange(async (v) => {
           s.keepPicture = v
@@ -62,9 +64,9 @@ export class BoardlineSettingTab extends PluginSettingTab {
         }),
       )
 
-    new Setting(containerEl).setName('오픈소스 라이선스').setHeading()
+    new Setting(containerEl).setName(t('settings.licenses')).setHeading()
     const notices = containerEl.createEl('details', { cls: 'boardline-notices' })
-    notices.createEl('summary', { text: '이 플러그인에 들어 있는 다른 프로젝트와 그 라이선스' })
+    notices.createEl('summary', { text: t('settings.licensesDesc') })
     notices.createEl('pre', { text: __THIRD_PARTY_NOTICES__ })
   }
 }

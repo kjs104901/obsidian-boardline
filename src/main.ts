@@ -1,7 +1,7 @@
 // Boardline for Obsidian: whiteboards (.board files) inside the vault, drawn by the board
 // engine (src/core) and the board UI (src/board-ui).
 
-import { Notice, Plugin, TFile, TFolder, normalizePath } from 'obsidian'
+import { Notice, Plugin, TFile, TFolder, getLanguage, normalizePath } from 'obsidian'
 import { parseLink } from '@boardline/core/board/links'
 import { boardFileName, emptyBoardFile, formatBoardFile, parseBoard, serialize, titleFromFileName } from '@boardline/core/board/serialize'
 import { updateOp } from '@boardline/core/board/document'
@@ -14,8 +14,8 @@ import { boardIdOf } from './dialogs'
 import { clearEmbedCache, registerBoardEmbeds } from './embeds'
 import { BoardlineSettingTab, DEFAULT_SETTINGS, type BoardlineSettings } from './settings'
 import { VaultStorage } from './vaultStorage'
-
-const NEW_BOARD = '새 보드'
+import { setLanguage, t } from '@boardline/core/i18n'
+import { setPrefsStore } from '@boardline/core/platform/prefs'
 
 export default class BoardlinePlugin extends Plugin {
   settings: BoardlineSettings = { ...DEFAULT_SETTINGS }
@@ -24,6 +24,13 @@ export default class BoardlinePlugin extends Plugin {
   private boardIds = new Map<string, string>()
 
   async onload(): Promise<void> {
+    // Obsidian's language, before any text is made (Obsidian restarts when it changes).
+    setLanguage(getLanguage())
+    // Recent colors, last tools, each board's view: per device, kept for this vault.
+    setPrefsStore({
+      load: (key): unknown => this.app.loadLocalStorage(key),
+      save: (key, value) => this.app.saveLocalStorage(key, value),
+    })
     await this.loadSettings()
     this.storage = new VaultStorage(this.app)
     this.followObsidianLook()
@@ -32,15 +39,15 @@ export default class BoardlinePlugin extends Plugin {
     this.registerExtensions(['board'], VIEW_TYPE_BOARD)
     registerBoardEmbeds(this)
 
-    this.addRibbonIcon('layout-dashboard', '새 보드', () => void this.createBoard())
-    this.addCommand({ id: 'new-board', name: '새 보드', callback: () => void this.createBoard() })
+    this.addRibbonIcon('layout-dashboard', t('board.newName'), () => void this.createBoard())
+    this.addCommand({ id: 'new-board', name: t('board.newName'), callback: () => void this.createBoard() })
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file) => {
         const folder = file instanceof TFolder ? file : file.parent
         if (!folder) return
         menu.addItem((i) =>
           i
-            .setTitle('새 보드')
+            .setTitle(t('board.newName'))
             .setIcon('layout-dashboard')
             .onClick(() => void this.createBoard(folder)),
         )
@@ -99,8 +106,7 @@ export default class BoardlinePlugin extends Plugin {
       const style = getComputedStyle(body)
       // The note background, the canvas dots and the accent, as plain colors (the variables
       // themselves may be calc() or color-mix() expressions a canvas can't read).
-      const probe = activeDocument.createElement('div')
-      body.append(probe)
+      const probe = body.createDiv()
       const resolve = (name: string) => {
         probe.style.color = `var(${name})`
         return getComputedStyle(probe).color || null
@@ -128,11 +134,12 @@ export default class BoardlinePlugin extends Plugin {
   }
 
   async createBoard(folder?: TFolder): Promise<void> {
+    const newBoard = t('board.newName')
     const dir = this.boardFolder(folder)
     if (dir && !this.app.vault.getFolderByPath(dir)) await this.app.vault.createFolder(dir)
     let path = ''
     for (let n = 1; ; n++) {
-      path = normalizePath(`${dir ? dir + '/' : ''}${boardFileName(n > 1 ? `${NEW_BOARD} ${n}` : NEW_BOARD)}`)
+      path = normalizePath(`${dir ? dir + '/' : ''}${boardFileName(n > 1 ? `${newBoard} ${n}` : newBoard)}`)
       if (!this.app.vault.getAbstractFileByPath(path)) break
     }
     const file = await this.app.vault.create(path, formatBoardFile(emptyBoardFile(titleFromFileName(path.slice(path.lastIndexOf('/') + 1)))))
@@ -171,7 +178,7 @@ export default class BoardlinePlugin extends Plugin {
   async openLink(link: string, sourcePath: string): Promise<void> {
     const target = parseLink(link)
     if (!target) {
-      new Notice(`열 수 없는 링크입니다: ${link}`)
+      new Notice(t('link.cantOpen', link))
       return
     }
     if (target.kind === 'web') {
@@ -181,7 +188,7 @@ export default class BoardlinePlugin extends Plugin {
     if (target.kind === 'doc') {
       const file = this.noteFile(link, sourcePath)
       if (!file) {
-        new Notice(`링크한 노트를 찾을 수 없습니다: ${target.path}`)
+        new Notice(t('link.noteMissing', target.path))
         return
       }
       await this.app.workspace.getLeaf(false).openFile(file)
@@ -189,7 +196,7 @@ export default class BoardlinePlugin extends Plugin {
     }
     const file = await this.findBoard(target.boardId)
     if (!file) {
-      new Notice('링크한 보드를 이 보관함에서 찾을 수 없습니다')
+      new Notice(t('link.boardMissing'))
       return
     }
     const leaf = this.app.workspace.getLeaf(false)

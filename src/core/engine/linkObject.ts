@@ -6,6 +6,7 @@ import { hostOf, parseLink } from '../board/links'
 import { fillColor, strokeColor, theme } from '../theme/palette'
 import type { Rect } from './geometry'
 import { wrapText, type MeasureAt } from './text'
+import { t } from '../i18n'
 
 export const LINK_ICON = 20
 export const LINK_GAP = 8
@@ -48,8 +49,8 @@ export interface LinkDrawing {
 /** The text a link shows: its own title, else the address' host. */
 export function linkTitle(o: ShapeObject): string {
   if (o.text) return o.text
-  const t = o.link ? parseLink(o.link) : null
-  return t?.kind === 'web' ? hostOf(t.url) : t?.kind === 'doc' ? t.path.replace(/\.md$/i, '') : t ? '보드' : '링크'
+  const target = o.link ? parseLink(o.link) : null
+  return target?.kind === 'web' ? hostOf(target.url) : target?.kind === 'doc' ? target.path.replace(/\.md$/i, '') : target ? t('common.board') : t('link')
 }
 
 const clamp = (lines: string[], max: number) => (lines.length > max ? [...lines.slice(0, max - 1), lines[max - 1].replace(/.?$/, '…')] : lines)
@@ -81,7 +82,7 @@ export function linkDrawing(o: ShapeObject, measureAt: MeasureAt): LinkDrawing {
   }
   y += 8
   const target = o.link ? parseLink(o.link) : null
-  const site = o.preview?.site || (target?.kind === 'web' ? hostOf(target.url) : target?.kind === 'doc' ? '문서 링크' : '보드 링크')
+  const site = o.preview?.site || (target?.kind === 'web' ? hostOf(target.url) : target?.kind === 'doc' ? t('link.docLink') : t('link.boardLink'))
   const icon = { rect: { x: o.x + CARD_PAD, y: y + (SITE_LINE - SITE_ICON) / 2, w: SITE_ICON, h: SITE_ICON }, src: o.src, glyph }
   texts.push({ lines: [site], x: o.x + CARD_PAD + SITE_ICON + 6, y, size: SITE_FONT, lineHeight: SITE_LINE, color: theme.textDim })
   y += SITE_LINE + CARD_PAD

@@ -248,6 +248,18 @@ describe('ends along a side', () => {
     expect(pts[1].y).toBeLessThan(pts[0].y)
   })
 
+  it('loop back to another spot on the same shape, entering square to its side', () => {
+    const a = shape(0, 0, 160, 180)
+    const pts = route([a], { objectId: a.id, side: 'bottom' }, { objectId: a.id, side: 'right', at: 0.75 })
+    expect(pts?.map((p) => [p.x, p.y])).toEqual([
+      [80, 180],
+      [80, 220],
+      [200, 220],
+      [200, 135],
+      [160, 135],
+    ])
+  })
+
   it('follow the shape when it is resized', () => {
     const a = shape(0, 0)
     const map = new Map<string, BoardObject>([[a.id, a]])

@@ -578,6 +578,11 @@
   transform: translateX(-100%);
 }
 
+/* No room beside the node: over (or under) it instead. */
+.bl-selection-toolbar.beside.over-node {
+  transform: none;
+}
+
 .bl-find-bar input {
   width: 100%;
   height: 28px;
@@ -1265,6 +1270,17 @@
 
 /* ---- narrow boards: the tool bar runs along the bottom, panels span the width ---- */
 @container bl-board (max-width: 560px) {
+  /* The selection bar wraps onto more rows instead of running off the board. */
+  .bl-selection-toolbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Its one-row width, not what is left right of where it is placed. */
+    width: max-content;
+    max-width: calc(100cqw - 16px);
+    white-space: normal;
+    /* Spanning the board, it may pass over the view controls. */
+    z-index: 7;
+  }
   .bl-toolbar {
     top: auto;
     right: 12px;

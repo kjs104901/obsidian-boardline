@@ -16,6 +16,7 @@ import {
   type TextAlign,
   type TextSize,
 } from './model'
+import { loadPref, savePref } from '../platform/prefs'
 
 /** The look of an object without its content or geometry. */
 export interface Style {
@@ -69,12 +70,8 @@ function styleGroup(o: BoardObject): string | null {
 const DEFAULTS_KEY = 'boardline.defaultStyles'
 
 function loadDefaults(): Record<string, Style> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(DEFAULTS_KEY) ?? '{}')
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
+  const stored = loadPref(DEFAULTS_KEY)
+  return stored && typeof stored === 'object' ? (stored as Record<string, Style>) : {}
 }
 
 /** Ctrl+Shift+D: new objects like `o` start with its style. Returns false if it has none. */
@@ -83,12 +80,7 @@ export function saveDefaultStyle(o: BoardObject): boolean {
   if (!group) return false
   const all = loadDefaults()
   all[group] = styleOf(o)
-  try {
-    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(all))
-  } catch {
-    return false
-  }
-  return true
+  return savePref(DEFAULTS_KEY, all)
 }
 
 /** A newly created object with the saved default style of its kind. */

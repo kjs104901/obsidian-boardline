@@ -25,6 +25,8 @@ import {
   type TextAlign,
   type TextSize,
 } from '@boardline/core/board/model'
+import { loadPref, savePref } from '@boardline/core/platform/prefs'
+import { t } from '@boardline/core/i18n'
 
 interface Props {
   editor: BoardEditor
@@ -39,18 +41,18 @@ interface Props {
 }
 
 const DECOS: { deco: Deco; label: string }[] = [
-  { deco: 'fill', label: '채우기' },
-  { deco: 'outline', label: '외곽선' },
-  { deco: 'dashed', label: '점선 외곽선' },
-  { deco: 'transparent', label: '투명 (글자만)' },
+  { deco: 'fill', get label() { return t('style.fill') } },
+  { deco: 'outline', get label() { return t('style.outline') } },
+  { deco: 'dashed', get label() { return t('style.dashed') } },
+  { deco: 'transparent', get label() { return t('style.transparent') } },
 ]
 
 const CAPS: { cap: EndCap; label: string }[] = [
-  { cap: 'none', label: '없음' },
-  { cap: 'arrow', label: '화살표' },
-  { cap: 'circle', label: '원' },
-  { cap: 'diamond', label: '마름모' },
-  { cap: 'fork', label: '갈래' },
+  { cap: 'none', get label() { return t('find.none') } },
+  { cap: 'arrow', get label() { return t('cap.arrow') } },
+  { cap: 'circle', get label() { return t('shape.ellipse') } },
+  { cap: 'diamond', get label() { return t('cap.diamond') } },
+  { cap: 'fork', get label() { return t('cap.fork') } },
   { cap: 'zero-one', label: '0..1' },
   { cap: 'one-one', label: '1..1' },
   { cap: 'zero-many', label: '0..N' },
@@ -61,17 +63,17 @@ type Menu = 'color' | 'shape' | 'deco' | 'icon' | 'table' | 'more' | 'startCap' 
 
 /** Line shapes, with their toolbar icons. */
 export const LINE_KINDS: { kind: ConnectorKind; label: string; icon: string }[] = [
-  { kind: 'elbow', label: '꺾은선', icon: 'M3.5 14V8.5a2 2 0 0 1 2-2h9' },
-  { kind: 'straight', label: '직선', icon: 'M3.5 14.5l11-11' },
-  { kind: 'curved', label: '곡선', icon: 'M3.5 14.5C3.5 7 14.5 11 14.5 3.5' },
+  { kind: 'elbow', get label() { return t('line.elbow') }, icon: 'M3.5 14V8.5a2 2 0 0 1 2-2h9' },
+  { kind: 'straight', get label() { return t('line.straight') }, icon: 'M3.5 14.5l11-11' },
+  { kind: 'curved', get label() { return t('line.curved') }, icon: 'M3.5 14.5C3.5 7 14.5 11 14.5 3.5' },
 ]
 
 const TEXT_SIZE_NAMES: { size: TextSize; short: string; label: string }[] = [
-  { size: 's', short: 'S', label: '작게' },
-  { size: 'm', short: 'M', label: '보통' },
-  { size: 'l', short: 'L', label: '크게' },
-  { size: 'xl', short: 'XL', label: '아주 크게' },
-  { size: 'xxl', short: 'XXL', label: '제목' },
+  { size: 's', short: 'S', get label() { return t('text.small') } },
+  { size: 'm', short: 'M', get label() { return t('text.medium') } },
+  { size: 'l', short: 'L', get label() { return t('text.large') } },
+  { size: 'xl', short: 'XL', get label() { return t('text.xlarge') } },
+  { size: 'xxl', short: 'XXL', get label() { return t('text.heading') } },
 ]
 
 const ALIGN_PATHS: Record<TextAlign, string> = {
@@ -81,17 +83,17 @@ const ALIGN_PATHS: Record<TextAlign, string> = {
 }
 
 const TEXT_ALIGNS: { align: TextAlign; label: string }[] = [
-  { align: 'left', label: '왼쪽 정렬' },
-  { align: 'center', label: '가운데 정렬' },
-  { align: 'right', label: '오른쪽 정렬' },
+  { align: 'left', get label() { return t('text.alignLeft') } },
+  { align: 'center', get label() { return t('text.alignCenter') } },
+  { align: 'right', get label() { return t('text.alignRight') } },
 ]
 
 const LIST_ICON = 'M7.5 5h7.5M7.5 9h7.5M7.5 13h7.5M3.8 5h.01M3.8 9h.01M3.8 13h.01'
 
 const ICON_LOOKS: { style: IconStyle; label: string }[] = [
-  { style: 'color', label: '컬러' },
-  { style: 'fill', label: '채움' },
-  { style: 'outline', label: '외곽선' },
+  { style: 'color', get label() { return t('icon.styleColorShort') } },
+  { style: 'fill', get label() { return t('icon.styleFill') } },
+  { style: 'outline', get label() { return t('style.outline') } },
 ]
 
 const TOOLBAR_HEIGHT = 40
@@ -100,20 +102,12 @@ const TOOLBAR_GAP = 24
 const RECENT_KEY = 'boardline.recentColors'
 
 function recentColors(): ColorKey[] {
-  try {
-    const list = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
-    return Array.isArray(list) ? list.filter((c): c is ColorKey => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 5) : []
-  } catch {
-    return []
-  }
+  const list = loadPref(RECENT_KEY)
+  return Array.isArray(list) ? list.filter((c): c is ColorKey => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 5) : []
 }
 
 function rememberColor(c: ColorKey): void {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([c, ...recentColors().filter((x) => x !== c)].slice(0, 5)))
-  } catch {
-    // Recent colors are a convenience only.
-  }
+  savePref(RECENT_KEY, [c, ...recentColors().filter((x) => x !== c)].slice(0, 5))
 }
 
 /** Floating toolbar above the selection. */
@@ -136,10 +130,10 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
       // Beside a node near the board's edge: over (or under) the node instead.
       bar.style.top = `${top}px`
       bar.style.left = `${left}px`
-      bar.style.transform = ''
+      bar.classList.remove('over-node')
       const onLeft = bar.classList.contains('on-left')
       if (onLeft ? left - bar.offsetWidth >= 8 : left + bar.offsetWidth <= parent.clientWidth - 8) return
-      bar.style.transform = 'none'
+      bar.classList.add('over-node')
       const above = Number(bar.dataset.above)
       bar.style.top = `${above >= 8 ? above : Number(bar.dataset.below)}px`
       bar.style.left = `${Math.max(8, Math.min(Number(bar.dataset.nodeLeft), parent.clientWidth - bar.offsetWidth - 8))}px`
@@ -149,6 +143,9 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
     const center = parseFloat(bar.style.left)
     const fitted = Math.max(half + 8, Math.min(center, parent.clientWidth - half - 8))
     if (fitted !== center) bar.style.left = `${fitted}px`
+    // Wrapped onto more rows (a narrow board), a bar above the selection grows upward, clear of it.
+    const extra = bar.offsetHeight - TOOLBAR_HEIGHT
+    if (bar.dataset.place === 'above') bar.style.top = `${extra > 0 ? top - extra : top}px`
   })
   // While text is typed, the bar keeps only its text buttons, which act on the selected words.
   const typing = status.textEditing
@@ -186,21 +183,21 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
   const wordsOn = (mark: MarkName) => (typing ? typing.marks[mark] : nodes.every((n) => hasMarkAll(n.text, mark)))
   const markButtons = (on: (mark: MarkName) => boolean) => (
     <>
-      <button title="굵게 (Ctrl+B)" className={on('bold') ? 'active' : ''} onClick={() => editor.toggleTextStyle('bold')}>
+      <button title={t('mark.boldKey')} className={on('bold') ? 'active' : ''} onClick={() => editor.toggleTextStyle('bold')}>
         <span className="bl-glyph bold">B</span>
       </button>
-      <button title="기울임 (Ctrl+I)" className={on('italic') ? 'active' : ''} onClick={() => editor.toggleTextStyle('italic')}>
+      <button title={t('mark.italicKey')} className={on('italic') ? 'active' : ''} onClick={() => editor.toggleTextStyle('italic')}>
         <span className="bl-glyph italic">I</span>
       </button>
-      <button title="취소선 (Ctrl+Shift+X)" className={on('strike') ? 'active' : ''} onClick={() => editor.toggleTextStyle('strike')}>
+      <button title={t('mark.strikeKey')} className={on('strike') ? 'active' : ''} onClick={() => editor.toggleTextStyle('strike')}>
         <span className="bl-glyph strike">S</span>
       </button>
       {typing && (
         <>
-          <button title="강조 (Ctrl+Shift+H)" className={on('highlight') ? 'active' : ''} onClick={() => editor.toggleTextStyle('highlight')}>
+          <button title={t('mark.highlightKey')} className={on('highlight') ? 'active' : ''} onClick={() => editor.toggleTextStyle('highlight')}>
             <ToolbarIcon d="M3.5 15h11M5.5 12.5V10l6-6 2.5 2.5-6 6z" />
           </button>
-          <button title="코드 (Ctrl+E)" className={on('code') ? 'active' : ''} onClick={() => editor.toggleTextStyle('code')}>
+          <button title={t('mark.codeKey')} className={on('code') ? 'active' : ''} onClick={() => editor.toggleTextStyle('code')}>
             <ToolbarIcon d="M6.5 5 3 9l3.5 4M11.5 5 15 9l-3.5 4" />
           </button>
         </>
@@ -235,7 +232,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
       setMenu(null)
       return
     }
-    apply('색 바꾸기', (o) => ({ ...o, color }))
+    apply(t('color.change'), (o) => ({ ...o, color }))
   }
 
   // Above the selection, centered (below when there is no room). Mind map nodes sit close
@@ -256,13 +253,13 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
   if (status.cropping) {
     return (
       <div ref={barRef} className="bl-selection-toolbar" style={{ top, left }} onPointerDown={(e) => e.stopPropagation()}>
-        <button title="자르기 적용 (Enter)" onClick={() => editor.finishCrop()}>
+        <button title={t('crop.apply')} onClick={() => editor.finishCrop()}>
           <ToolbarIcon d="M4 9.5l3.5 3.5L14 5.5" />
         </button>
-        <button title="그림 전체로" onClick={() => editor.cropToWhole()}>
+        <button title={t('crop.whole')} onClick={() => editor.cropToWhole()}>
           <ToolbarIcon d="M3 6.5V3h3.5M11.5 3H15v3.5M15 11.5V15h-3.5M6.5 15H3v-3.5" />
         </button>
-        <button title="취소 (Esc)" onClick={() => editor.finishCrop(false)}>
+        <button title={t('common.cancelEsc')} onClick={() => editor.finishCrop(false)}>
           <ToolbarIcon d="M5 5l8 8M13 5l-8 8" />
         </button>
       </div>
@@ -280,6 +277,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
         ref={barRef}
         className={'bl-selection-toolbar' + (onlyNodes ? ' beside' : '') + (leftSide ? ' on-left' : '')}
         style={{ top, left }}
+        data-place={onlyNodes ? 'beside' : below ? 'below' : 'above'}
         data-above={box.y - TOOLBAR_HEIGHT - 12}
         data-below={box.y + box.h + 12}
         data-node-left={box.x}
@@ -289,16 +287,16 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
       >
         {!typing && onlyNodes && single && !single.locked && (
           <>
-            <button title="자식 노드 추가 (Tab)" onClick={run(() => editor.addChildNode(single.id))}>
+            <button title={t('mindmap.addChildKey')} onClick={run(() => editor.addChildNode(single.id))}>
               <ToolbarIcon d="M3 9h5M8 4.5v9M8 4.5h3M8 13.5h3M13.5 4.5h2M13.5 13.5h2M14.5 3.5v2M14.5 12.5v2" />
             </button>
             {isMindmap(single) && single.parentId && (
-              <button title="형제 노드 추가 (Enter)" onClick={run(() => editor.addSiblingNode(single.id))}>
+              <button title={t('mindmap.addSiblingKey')} onClick={run(() => editor.addSiblingNode(single.id))}>
                 <ToolbarIcon d="M4 5h7M4 10h7M13.5 13.5h3M15 12v3" />
               </button>
             )}
             {isMindmap(single) && editor.branchCount(single.id) > 0 && (
-              <button title={single.collapsed ? '가지 펼치기 (/)' : '가지 접기 (/)'} onClick={run(() => editor.toggleFold())}>
+              <button title={single.collapsed ? t('mindmap.unfoldKey') : t('mindmap.foldKey')} onClick={run(() => editor.toggleFold())}>
                 <ToolbarIcon d={single.collapsed ? 'M9 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M6.5 9h5M9 6.5v5' : 'M9 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M6.5 9h5'} />
               </button>
             )}
@@ -306,12 +304,12 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
           </>
         )}
         {editable && !typing && (
-          <button title="텍스트 추가 (Enter)" onClick={run(() => editor.editSelection())}>
+          <button title={t('text.addKey')} onClick={run(() => editor.editSelection())}>
             <ToolbarIcon d="M4 4h10M9 4v10" />
           </button>
         )}
         {single && isShape(single) && single.shape === 'image' && !single.locked && (
-          <button title="자르기 (Enter)" onClick={run(() => editor.startCrop())}>
+          <button title={t('image.cropKey')} onClick={run(() => editor.startCrop())}>
             <ToolbarIcon d="M5.5 2.5v10h10M2.5 5.5h10v10" />
           </button>
         )}
@@ -319,11 +317,11 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
         {!locked && texts.length > 0 && (
           <>
             <span className="bl-text-size">
-              <button title="글자 작게 (Ctrl+Shift+,)" disabled={textSize === 's'} onClick={() => editor.stepTextSize(-1)}>
+              <button title={t('text.smallerKey')} disabled={textSize === 's'} onClick={() => editor.stepTextSize(-1)}>
                 <ToolbarIcon d="M5 9h8" />
               </button>
               <span className="bl-menu-anchor">
-                <button title="글자 크기" className="bl-text-size-value" onClick={() => setMenu(menu === 'textSize' ? null : 'textSize')}>
+                <button title={t('text.size')} className="bl-text-size-value" onClick={() => setMenu(menu === 'textSize' ? null : 'textSize')}>
                   {TEXT_SIZE_NAMES.find((n) => n.size === textSize)?.short ?? '–'}
                 </button>
                 {menu === 'textSize' && (
@@ -337,13 +335,13 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
                   </div>
                 )}
               </span>
-              <button title="글자 크게 (Ctrl+Shift+.)" disabled={textSize === 'xxl'} onClick={() => editor.stepTextSize(1)}>
+              <button title={t('text.largerKey')} disabled={textSize === 'xxl'} onClick={() => editor.stepTextSize(1)}>
                 <ToolbarIcon d="M5 9h8M9 5v8" />
               </button>
             </span>
             {markButtons(allOn)}
             <div className="bl-menu-anchor">
-              <button title="정렬" onClick={() => setMenu(menu === 'align' ? null : 'align')}>
+              <button title={t('text.align')} onClick={() => setMenu(menu === 'align' ? null : 'align')}>
                 <ToolbarIcon d={ALIGN_PATHS[textAlign ?? 'left']} />
               </button>
               {menu === 'align' && (
@@ -357,14 +355,14 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
               )}
             </div>
             <div className="bl-menu-anchor">
-              <button title="목록" onClick={() => setMenu(menu === 'list' ? null : 'list')}>
+              <button title={t('text.list')} onClick={() => setMenu(menu === 'list' ? null : 'list')}>
                 <ToolbarIcon d={LIST_ICON} />
               </button>
               {menu === 'list' && (
                 <div className="bl-menu bl-list-menu">
-                  <MenuItem label="• 글머리 기호" keys="Ctrl+Shift+8" onClick={run(() => editor.toggleList('bullet'))} />
-                  <MenuItem label="1. 번호 매기기" keys="Ctrl+Shift+7" onClick={run(() => editor.toggleList('number'))} />
-                  <MenuItem label="☐ 할 일 목록" keys="Ctrl+Shift+9" onClick={run(() => editor.toggleList('task'))} />
+                  <MenuItem label={t('text.bulletsMenu')} keys="Ctrl+Shift+8" onClick={run(() => editor.toggleList('bullet'))} />
+                  <MenuItem label={t('text.numbersMenu')} keys="Ctrl+Shift+7" onClick={run(() => editor.toggleList('number'))} />
+                  <MenuItem label={t('text.tasksMenu')} keys="Ctrl+Shift+9" onClick={run(() => editor.toggleList('task'))} />
                 </div>
               )}
             </div>
@@ -383,7 +381,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
           <>
           {!locked && flow.length > 0 && (
             <div className="bl-menu-anchor">
-              <button title="도형 종류" onClick={() => setMenu(menu === 'shape' ? null : 'shape')}>
+              <button title={t('shape.kind')} onClick={() => setMenu(menu === 'shape' ? null : 'shape')}>
                 <ShapeIcon kind={shapeKind ?? 'rect'} />
               </button>
               {menu === 'shape' && (
@@ -393,7 +391,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
                       key={s.kind}
                       title={s.key ? `${s.label} (${s.key})` : s.label}
                       className={shapeKind === s.kind ? 'active' : ''}
-                      onClick={() => apply('모양 바꾸기', onShapes((o) => ({ ...o, shape: s.kind })))}
+                      onClick={() => apply(t('shape.changeUndo'), onShapes((o) => ({ ...o, shape: s.kind })))}
                     >
                       <ShapeIcon kind={s.kind} />
                     </button>
@@ -405,7 +403,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
 
           {!locked && (
             <div className="bl-menu-anchor">
-              <button title={table ? (cell ? '칸 색' : '머리글 색') : '색'} onClick={() => setMenu(menu === 'color' ? null : 'color')}>
+              <button title={table ? (cell ? t('table.cellColor') : t('table.headerColor')) : t('color')} onClick={() => setMenu(menu === 'color' ? null : 'color')}>
                 <span className="bl-swatch" style={{ background: strokeColor(shownColor) }} />
               </button>
               {menu === 'color' && (
@@ -420,7 +418,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
                       <span className="bl-swatch" style={{ background: c }} />
                     </button>
                   ))}
-                  <label className="bl-custom-color" title="다른 색">
+                  <label className="bl-custom-color" title={t('color.custom')}>
                     +
                     <input
                       type="color"
@@ -435,13 +433,13 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
 
           {!locked && flow.length > 0 && (
             <div className="bl-menu-anchor">
-              <button title="스타일" onClick={() => setMenu(menu === 'deco' ? null : 'deco')}>
+              <button title={t('style')} onClick={() => setMenu(menu === 'deco' ? null : 'deco')}>
                 <DecoIcon deco={deco ?? 'outline'} />
               </button>
               {menu === 'deco' && (
                 <div className="bl-menu bl-deco-menu">
                   {DECOS.map((d) => (
-                    <button key={d.deco} title={d.label} className={deco === d.deco ? 'active' : ''} onClick={() => apply('스타일', onShapes((o) => ({ ...o, deco: d.deco })))}>
+                    <button key={d.deco} title={d.label} className={deco === d.deco ? 'active' : ''} onClick={() => apply(t('style'), onShapes((o) => ({ ...o, deco: d.deco })))}>
                       <DecoIcon deco={d.deco} />
                     </button>
                   ))}
@@ -452,14 +450,14 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
 
           {!locked && iconTargets.length > 0 && (
             <div className="bl-menu-anchor">
-              <button title={icons.length ? '아이콘 바꾸기' : '아이콘'} className={menu === 'icon' ? 'active' : ''} onClick={() => setMenu(menu === 'icon' ? null : 'icon')}>
+              <button title={icons.length ? t('icon.change') : t('icon')} className={menu === 'icon' ? 'active' : ''} onClick={() => setMenu(menu === 'icon' ? null : 'icon')}>
                 {iconTargets[0].icon ? <IconGlyph name={iconTargets[0].icon} style="outline" size={18} /> : <ToolbarIcon d="M9 2.5l1.9 4 4.4.5-3.3 3 .9 4.3L9 12.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z" />}
               </button>
               {menu === 'icon' && (
                 <div className="bl-menu bl-icon-menu">
                   <IconPicker
                     style={icons.length ? (iconLook ?? 'color') : pickStyle}
-                    onStyle={(s) => (icons.length ? editor.updateSelected('아이콘 모양', onShapes((o) => ({ ...o, iconStyle: s }))) : setPickStyle(s))}
+                    onStyle={(s) => (icons.length ? editor.updateSelected(t('icon.style'), onShapes((o) => ({ ...o, iconStyle: s }))) : setPickStyle(s))}
                     onPick={(name) => {
                       editor.setIcon(name, icons.length ? undefined : pickStyle)
                       setMenu(null)
@@ -478,14 +476,14 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
                 key={l.style}
                 title={l.label}
                 className={iconLook === l.style ? 'active' : ''}
-                onClick={() => apply('아이콘 모양', onShapes((o) => ({ ...o, iconStyle: l.style })))}
+                onClick={() => apply(t('icon.style'), onShapes((o) => ({ ...o, iconStyle: l.style })))}
               >
                 <IconGlyph name={icons[0].icon ?? 'star'} style={l.style} size={18} tint="currentColor" />
               </button>
             ))}
 
           {!locked && flow.length > 0 && (
-            <button title="90° 회전" onClick={run(() => editor.rotateSelected())}>
+            <button title={t('rotate90')} onClick={run(() => editor.rotateSelected())}>
               <ToolbarIcon d="M14 9a5 5 0 1 1-1.5-3.5M14 3v3h-3" />
             </button>
           )}
@@ -493,7 +491,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
           {!locked && shapes.length === 1 && shapes[0].shape === 'table' && (
             <div className="bl-menu-anchor">
               <button
-                title={status.tableCell ? `표 (선택한 칸: ${status.tableCell.row + 1}행 ${status.tableCell.col + 1}열)` : '표 (마지막 행·열 기준)'}
+                title={status.tableCell ? t('table.withCell', status.tableCell.row + 1, status.tableCell.col + 1) : t('table.withoutCell')}
                 onClick={() => setMenu(menu === 'table' ? null : 'table')}
               >
                 <TableIcon />
@@ -517,7 +515,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
           )}
           {!locked && table && (
             <div className="bl-menu-anchor">
-              <button title={cell ? '선택한 칸의 열 정렬' : '모든 열 정렬'} onClick={() => setMenu(menu === 'align' ? null : 'align')}>
+              <button title={cell ? t('table.alignColumn') : t('table.alignAll')} onClick={() => setMenu(menu === 'align' ? null : 'align')}>
                 <ToolbarIcon d={ALIGN_PATHS[tableAlign ?? 'left']} />
               </button>
               {menu === 'align' && (
@@ -535,20 +533,20 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
           {!locked && connectors.length > 0 && (
             <>
               <span className="bl-sep" />
-              <button title="실선" className={line === 'solid' ? 'active' : ''} onClick={() => apply('선 스타일', onConnectors((c) => ({ ...c, line: 'solid' })))}>
+              <button title={t('line.solid')} className={line === 'solid' ? 'active' : ''} onClick={() => apply(t('line.style'), onConnectors((c) => ({ ...c, line: 'solid' })))}>
                 <ToolbarIcon d="M3 9h12" />
               </button>
-              <button title="점선" className={line === 'dashed' ? 'active' : ''} onClick={() => apply('선 스타일', onConnectors((c) => ({ ...c, line: 'dashed' })))}>
+              <button title={t('line.dashed')} className={line === 'dashed' ? 'active' : ''} onClick={() => apply(t('line.style'), onConnectors((c) => ({ ...c, line: 'dashed' })))}>
                 <ToolbarIcon d="M3 9h2.5M7.75 9h2.5M12.5 9h2.5" />
               </button>
               <div className="bl-menu-anchor">
-                <button title="선 모양" onClick={() => setMenu(menu === 'lineKind' ? null : 'lineKind')}>
+                <button title={t('line.shape')} onClick={() => setMenu(menu === 'lineKind' ? null : 'lineKind')}>
                   <ToolbarIcon d={LINE_KINDS.find((k) => k.kind === kind)?.icon ?? LINE_KINDS[0].icon} />
                 </button>
                 {menu === 'lineKind' && (
                   <div className="bl-menu bl-align-menu">
                     {LINE_KINDS.map((k) => (
-                      <button key={k.kind} title={k.label} className={kind === k.kind ? 'active' : ''} onClick={() => apply('선 종류', onConnectors((c) => ({ ...c, kind: k.kind })))}>
+                      <button key={k.kind} title={k.label} className={kind === k.kind ? 'active' : ''} onClick={() => apply(t('line.kind'), onConnectors((c) => ({ ...c, kind: k.kind })))}>
                         <ToolbarIcon d={k.icon} />
                       </button>
                     ))}
@@ -563,54 +561,54 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
               <span className="bl-sep" />
               <CapMenu
                 atStart
-                title="시작 모양"
+                title={t('cap.start')}
                 value={conn.startCap}
                 open={menu === 'startCap'}
                 onToggle={() => setMenu(menu === 'startCap' ? null : 'startCap')}
-                onPick={(cap) => apply('끝 모양', onConnectors((c) => ({ ...c, startCap: cap })))}
+                onPick={(cap) => apply(t('cap.end'), onConnectors((c) => ({ ...c, startCap: cap })))}
               />
               <button
-                title="방향 바꾸기"
-                onClick={() => apply('방향 바꾸기', onConnectors((c) => ({ ...c, from: c.to, to: c.from, startCap: c.endCap, endCap: c.startCap })))}
+                title={t('line.reverse')}
+                onClick={() => apply(t('line.reverse'), onConnectors((c) => ({ ...c, from: c.to, to: c.from, startCap: c.endCap, endCap: c.startCap })))}
               >
                 <ToolbarIcon d="M3 6.5h11.5M12 4l2.5 2.5L12 9M15 11.5H3.5M6 9l-2.5 2.5L6 14" />
               </button>
               <CapMenu
-                title="끝 모양"
+                title={t('cap.end')}
                 value={conn.endCap}
                 open={menu === 'endCap'}
                 onToggle={() => setMenu(menu === 'endCap' ? null : 'endCap')}
-                onPick={(cap) => apply('끝 모양', onConnectors((c) => ({ ...c, endCap: cap })))}
+                onPick={(cap) => apply(t('cap.end'), onConnectors((c) => ({ ...c, endCap: cap })))}
               />
             </>
           )}
 
           {singleLink && (
-            <button title={isShape(single) && single.shape === 'note' ? '노트 열기 (더블클릭)' : '링크 열기 (Ctrl+클릭)'} onClick={run(() => onOpenLink?.(singleLink))}>
+            <button title={isShape(single) && single.shape === 'note' ? t('note.openKey') : t('link.openKey')} onClick={run(() => onOpenLink?.(singleLink))}>
               <ToolbarIcon d="M10 3h5v5M15 3L8 10M13 11v3.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5H7" />
             </button>
           )}
           {!locked && links.length > 0 && (
-            <button title={links.every((l) => l.expanded) ? '한 줄로 보기' : '카드로 보기 (설명과 그림)'} className={links.every((l) => l.expanded) ? 'active' : ''} onClick={run(() => editor.toggleLinkCard())}>
+            <button title={links.every((l) => l.expanded) ? t('link.compact') : t('link.cardDetail')} className={links.every((l) => l.expanded) ? 'active' : ''} onClick={run(() => editor.toggleLinkCard())}>
               <ToolbarIcon d="M3 4h12v10H3zM3 9h12" />
             </button>
           )}
           {!locked && links.length === 1 && (
-            <button title="링크 바꾸기" onClick={run(() => onLinkDialog?.('edit', links[0].id, links[0].link))}>
+            <button title={t('link.change')} onClick={run(() => onLinkDialog?.('edit', links[0].id, links[0].link))}>
               <ToolbarIcon d="M7.5 10.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.8.8M10.5 7.5a3 3 0 0 0-4.2 0L4 9.8A3 3 0 0 0 8.2 14l.8-.8" />
             </button>
           )}
           <span className="bl-sep" />
-          <button title="복제 (Ctrl+D)" onClick={run(() => editor.duplicateSelection())}>
+          <button title={t('edit.duplicateKey')} onClick={run(() => editor.duplicateSelection())}>
             <ToolbarIcon d="M6 6h8v8H6zM4 12V4h8" />
           </button>
           {anyLocked && (
-            <button title="잠금 해제 (Shift+L)" className="active" onClick={run(() => editor.toggleLock())}>
+            <button title={t('lock.unlockKey')} className="active" onClick={run(() => editor.toggleLock())}>
               <ToolbarIcon d="M5 8h8v7H5zM7 8V6a2 2 0 0 1 4 0v2" />
             </button>
           )}
           <div className="bl-menu-anchor">
-            <button title="더 보기" className={menu === 'more' ? 'active' : ''} onClick={() => setMenu(menu === 'more' ? null : 'more')}>
+            <button title={t('more')} className={menu === 'more' ? 'active' : ''} onClick={() => setMenu(menu === 'more' ? null : 'more')}>
               <MoreIcon />
             </button>
             {menu === 'more' && (

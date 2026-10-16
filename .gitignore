@@ -1,5 +1,11 @@
 node_modules/
 dist/
+
+# Build output (attached to releases, never committed)
+/main.js
+/main.css
+/styles.css
+
 *.local
 
 # Local test vault and dev automation output
