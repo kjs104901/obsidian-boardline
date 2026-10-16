@@ -2,7 +2,7 @@
 // saves the file (requestSave after every change); the view adds version history, the header
 // actions and Obsidian's own dialogs and menus.
 
-import { Menu, Notice, Scope, TFile, TextFileView, normalizePath, type TAbstractFile, type WorkspaceLeaf } from 'obsidian'
+import { Menu, Notice, Platform, Scope, TFile, TextFileView, normalizePath, type TAbstractFile, type WorkspaceLeaf } from 'obsidian'
 import { createRoot, type Root } from 'react-dom/client'
 import { BoardScreen, boardMenu, type BoardController, type BoardHost } from '@boardline/board-ui/BoardScreen'
 import { storeImage } from '@boardline/core/board/assets'
@@ -68,7 +68,8 @@ export class BoardFileView extends TextFileView {
     super.onload()
     this.addAction('download', t('view.exportImport'), (evt) => this.showBoardMenu(evt))
     this.addAction('history', t('history.title'), () => this.controller.current?.toggleHistory())
-    this.addAction('presentation', t('view.presentKey'), () => this.controller.current?.startPresenting())
+    // Presenting ends with Esc: not on phones and tablets, which have none.
+    if (!Platform.isMobile) this.addAction('presentation', t('view.presentKey'), () => this.controller.current?.startPresenting())
     this.contentEl.addClass('bl-view')
   }
 
@@ -316,6 +317,7 @@ export class BoardFileView extends TextFileView {
           // Not every platform allows it (mobile); presenting still works in the pane.
         }
       },
+      canPresent: !Platform.isMobile,
       promptText: (request) => new Promise((resolve) => new TextPrompt(app, request, resolve).open()),
       isActive: () => app.workspace.getActiveViewOfType(BoardFileView) === this,
     }

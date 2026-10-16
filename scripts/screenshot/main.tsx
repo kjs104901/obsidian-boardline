@@ -84,6 +84,16 @@ const host: BoardHost = {
   notify: () => {},
   saveExport: async () => false,
   promptText: async () => null,
+  // As the plugin does (?mobile: as on phones and tablets, without presenting).
+  setFullscreen: async (on, element) => {
+    try {
+      if (on) await element.requestFullscreen()
+      else if (element.ownerDocument.fullscreenElement) await element.ownerDocument.exitFullscreen()
+    } catch {
+      // Not allowed here: presenting goes on in the page.
+    }
+  },
+  canPresent: !new URLSearchParams(location.search).has('mobile'),
 }
 
 // As the plugin does: light or dark by the body's class (add ?dark for a dark picture).

@@ -69,6 +69,11 @@ export interface BoardHost {
   saveExport(fileName: string, format: ExportFormat, bytes: Uint8Array): Promise<boolean>
   /** Full screen for presenting. */
   setFullscreen?(on: boolean, element: HTMLElement): Promise<void>
+  /**
+   * Whether presenting is offered (default yes). Presenting ends with Esc, so it is left out
+   * where there is no Esc key (phones and tablets).
+   */
+  canPresent?: boolean
   /** Ask for text (Mermaid import). */
   promptText(request: { title: string; placeholder: string; hint: string; action: string }): Promise<string | null>
   /** Whether keys go to this board now (default: while it has the focus). */
@@ -311,9 +316,10 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     }
   }
 
+  const canPresent = host.canPresent !== false
   const startPresenting = (from = 0) => {
     const ed = editorRef.current
-    if (!ed) return
+    if (!ed || hostRef.current.canPresent === false) return
     const slides = ed.slides()
     if (slides.length === 0) {
       hostRef.current.notify(t('present.nothing'))
@@ -414,6 +420,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
       if (typing || mod || e.altKey) return
       if (readOnlyRef.current && ['k', 'x'].includes(key)) return
       if (e.key === 'F5') {
+        if (hostRef.current.canPresent === false) return
         e.preventDefault()
         startPresentingRef.current()
       } else if (key === 'k') {
@@ -466,7 +473,19 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
     // Capture, so the board's own shortcuts never see these keys.
     const w = win()
     w.addEventListener('keydown', onKey, true)
-    return () => w.removeEventListener('keydown', onKey, true)
+    // In full screen the first Esc only leaves full screen (the board never sees the key): leaving
+    // full screen ends presenting too, so one Esc does it.
+    const doc = rootRef.current?.ownerDocument
+    let full = !!doc?.fullscreenElement
+    const onFullscreen = () => {
+      if (doc?.fullscreenElement) full = true
+      else if (full) stopPresenting()
+    }
+    doc?.addEventListener('fullscreenchange', onFullscreen)
+    return () => {
+      w.removeEventListener('keydown', onKey, true)
+      doc?.removeEventListener('fullscreenchange', onFullscreen)
+    }
   }, [!!presenting])
 
   const activeTool = status?.tool
@@ -555,7 +574,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
           helpOpen={helpOpen}
           onHelp={() => setHelpOpen(!helpOpen)}
           slidesOpen={slidesOpen}
-          onSlides={() => setSlidesOpen(!slidesOpen)}
+          onSlides={canPresent ? () => setSlidesOpen(!slidesOpen) : undefined}
         />
       )}
       {editor && contextMenu && (
@@ -572,7 +591,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
           onLinkDialog={(mode, id, initial) => void requestLink(mode, id, initial)}
           onExportNote={host.saveNote ? () => void exportNote() : undefined}
           onAddFile={host.pickFiles ? (at) => void requestFiles(at) : undefined}
-          onPresent={(from) => startPresenting(from)}
+          onPresent={canPresent ? (from) => startPresenting(from) : undefined}
           onImportMermaid={() => void importMermaid()}
         />
       )}

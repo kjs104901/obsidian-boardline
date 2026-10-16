@@ -59,7 +59,8 @@ interface Props {
   onHelp: () => void
   /** The presenting order panel. */
   slidesOpen: boolean
-  onSlides: () => void
+  /** The presenting order panel; absent where there is no presenting. */
+  onSlides?: () => void
 }
 
 export function ViewControls({ editor, status, snap, onSnap, readOnly, onReadOnly, helpOpen, onHelp, slidesOpen, onSlides }: Props) {
@@ -136,9 +137,11 @@ export function ViewControls({ editor, status, snap, onSnap, readOnly, onReadOnl
         </div>
       )}
       <div className="bl-control-group">
-        <button className={slidesOpen ? 'active' : ''} title={t('slides.title')} onClick={onSlides}>
-          <SlidesIcon />
-        </button>
+        {onSlides && (
+          <button className={slidesOpen ? 'active' : ''} title={t('slides.title')} onClick={onSlides}>
+            <SlidesIcon />
+          </button>
+        )}
         <button className={helpOpen ? 'active' : ''} title={t('view.help')} onClick={onHelp}>
           <HelpIcon />
         </button>

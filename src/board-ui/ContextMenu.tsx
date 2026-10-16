@@ -25,7 +25,8 @@ interface Props extends Omit<ObjectMenuProps, 'done' | 'status' | 'onPaste'> {
   onOpenLink?: (link: string) => void
   /** Put a workspace file here; absent where files can't be read. */
   onAddFile?: (at: Point) => void
-  onPresent: (from: number) => void
+  /** Absent where there is no presenting. */
+  onPresent?: (from: number) => void
   onImportMermaid: () => void
 }
 
@@ -182,7 +183,7 @@ export function ContextMenu(props: Props) {
         return (
           <>
             <MenuItem label={t('section.editTitle')} keys="Enter" onClick={run(() => editor.editSelection())} />
-            <MenuItem label={t('present.fromSection')} onClick={run(() => props.onPresent(Math.max(0, index)))} />
+            {props.onPresent && <MenuItem label={t('present.fromSection')} onClick={run(() => props.onPresent?.(Math.max(0, index)))} />}
           </>
         )
       }
@@ -238,7 +239,7 @@ export function ContextMenu(props: Props) {
         <MenuItem label={t('view.actualSize')} keys="Ctrl+0" onClick={run(() => editor.resetZoom())} />
         <MenuItem label={t('view.fit')} keys="Shift+1" onClick={run(() => editor.zoomToFit(false))} />
         <hr />
-        <MenuItem label={t('present')} keys="F5" onClick={run(() => props.onPresent(0))} />
+        {props.onPresent && <MenuItem label={t('present')} keys="F5" onClick={run(() => props.onPresent?.(0))} />}
         {!readOnly && <MenuItem label={t('mermaid.importMenu')} onClick={run(props.onImportMermaid)} />}
       </div>
     )

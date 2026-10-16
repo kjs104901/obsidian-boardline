@@ -20,7 +20,7 @@ Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence dia
 - **Markdown text**: bold, italic, strikethrough, highlight, code, headings, lists and tasks, the same syntax as your notes.
 - **Mermaid**: paste a flowchart, sequence diagram or mind map to turn it into board objects; copy a selection back as Mermaid.
 - **Auto layout** of flowcharts (`Shift+Alt+V` top to bottom, `Shift+Alt+H` left to right).
-- **Find and replace**, **version history**, and **presenting** sections as slides with a laser pointer.
+- **Find and replace**, **version history**, and **presenting** sections as slides with a laser pointer (on desktop).
 - **Export** to PNG, SVG, a Markdown note or an Obsidian canvas, and embed a board in a note with `![[My board.board]]`.
 - Follows Obsidian's light or dark theme, accent color and interface font.
 
@@ -58,7 +58,7 @@ Only link objects use the network. When you add a web address, Boardline reads t
 
 ## Phones and tablets
 
-Boardline runs on Obsidian mobile: one finger works like the mouse, two fingers pan and zoom, and on narrow screens the toolbar moves to the bottom. Mobile support is new, so please report anything that doesn't work.
+Boardline runs on Obsidian mobile: one finger works like the mouse, two fingers pan and zoom, and on narrow screens the toolbar moves to the bottom. Presenting is left out there, since it ends with Esc. Mobile support is new, so please report anything that doesn't work.
 
 ## Languages
 
