@@ -37,11 +37,14 @@ import {
   labelCenter,
   lengthAtPoint,
   pinSegment,
+  pinsApply,
   polylineBounds,
   polylineLength,
+  segmentSnapValues,
   shiftPins,
   sidePoint,
   center,
+  withoutIdlePins,
   type ConnectorGeometry,
   type Lookup,
   type SegmentHandle,
@@ -2463,16 +2466,43 @@ export class BoardEditor {
   /** Drag an interior elbow segment across its axis; it snaps to the grid and stays pinned. */
   private updateSegment(it: Extract<Interaction, { kind: 'segment' }>, bp: Point, e: MouseEvent): void {
     const raw = it.value + (bp[it.axis] - it.downBoard[it.axis])
-    const mode = this.snapOptions(e).mode
-    const value = mode === 'full' || mode === 'grid' ? snap(raw) : Math.round(raw)
-    this.preview.set(it.original.id, pinSegment(it.original, this.lookup, it.index, value))
+    const { mode, distance: reach } = this.snapOptions(e)
+    let value = mode === 'full' || mode === 'grid' ? snap(raw) : Math.round(raw)
+    // Back in line with the ends, or where the line would run by itself: it straightens out and
+    // routes itself again (the shapes' middles are rarely on the grid).
+    if (mode !== 'none') {
+      const near = segmentSnapValues(it.original, this.lookup, it.axis).reduce<number | null>((best, v) => (Math.abs(v - raw) <= reach && (best === null || Math.abs(v - raw) < Math.abs(best - raw)) ? v : best), null)
+      if (near !== null) value = near
+    }
+    this.preview.set(it.original.id, withoutIdlePins(pinSegment(it.original, this.lookup, it.index, value), this.lookup))
     this.requestRender()
   }
 
   /** Every change the editor makes goes through here; a read-only view makes none. */
   private commit(label: string, ops: Op[], mergeWithLast = false): void {
     if (this.readOnly) return
-    this.doc.commit(label, ops, mergeWithLast)
+    this.doc.commit(label, [...ops, ...this.idlePinOps(ops)], mergeWithLast)
+  }
+
+  /**
+   * Lines whose dragged segments no longer fit once `ops` have moved or resized the shapes they
+   * join: they let go of them and route themselves, so an old detour doesn't come back later.
+   */
+  private idlePinOps(ops: Op[]): Op[] {
+    const changed = new Set(ops.filter((op) => op.after && !isConnector(op.after)).map((op) => op.id))
+    if (changed.size === 0) return []
+    const after = new Map(ops.map((op) => [op.id, op.after]))
+    const lookup: Lookup = (id) => (after.has(id) ? (after.get(id) ?? undefined) : this.doc.get(id))
+    const out: Op[] = []
+    for (const o of this.doc.objects.values()) {
+      if (!isConnector(o) || !o.pins || after.has(o.id)) continue
+      const ends = [endpointObjectId(o.from), endpointObjectId(o.to)]
+      if (!ends.some((id) => id !== null && changed.has(id))) continue
+      if (pinsApply(o, lookup)) continue
+      const { pins: _pins, ...rest } = o
+      out.push(updateOp(o, rest))
+    }
+    return out
   }
 
   /** A coordinate on the grid while grid snapping is on (` held: as it is). */

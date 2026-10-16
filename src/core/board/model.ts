@@ -182,6 +182,12 @@ export interface ConnectorObject {
  */
 export interface SegmentPins {
   at: (SegmentPin | null)[]
+  /**
+   * For a route the user shaped (every segment held): how many segments the automatic route had
+   * then. The shape holds while the ends keep that arrangement; moved into another, the line is
+   * routed afresh.
+   */
+  base?: number
 }
 
 /** A vertical segment keeps its x, a horizontal one its y. */

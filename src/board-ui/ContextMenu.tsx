@@ -6,6 +6,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef } from 'react'
 import { isConnector, isFlowShape, isMindmap, isShape, type ShapeKind } from '@boardline/core/board/model'
 import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
 import type { Point } from '@boardline/core/engine/geometry'
+import { reverseConnector } from '@boardline/core/engine/connectors'
 import { COPY_AS, MenuItem, ObjectMenuItems, SubMenu, TABLE_OPS, tableOpDisabled, type ObjectMenuProps } from './ObjectMenu'
 import { BASIC_SHAPES } from './shapeKinds'
 import { LINE_KINDS } from './SelectionToolbar'
@@ -120,7 +121,7 @@ export function ContextMenu(props: Props) {
           />
           <MenuItem
             label={t('line.reverse')}
-            onClick={run(() => editor.updateSelected(t('line.reverse'), (o) => (isConnector(o) ? { ...o, from: o.to, to: o.from, startCap: o.endCap, endCap: o.startCap } : o)))}
+            onClick={run(() => editor.updateSelected(t('line.reverse'), (o) => (isConnector(o) ? reverseConnector(o) : o)))}
           />
         </>
       )

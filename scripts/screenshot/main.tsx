@@ -127,7 +127,8 @@ async function start(): Promise<void> {
   while (!controller.current) await frame()
   const ed = controller.current.editor
   window.boardEditor = ed
-  await compose(ed)
+  // ?empty: a blank board, for trying things out by hand or from a script.
+  if (!new URLSearchParams(location.search).has('empty')) await compose(ed)
   // The board draws on the next frames; give the text and grid a moment.
   for (let i = 0; i < 10; i++) await frame()
   window.boardReady = true

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createConnector, createShape, type BoardObject, type Endpoint, type ShapeObject } from '../board/model'
-import { applyPins, connectorGeometry, connectorHandles, connectorPolyline, END_GAP, lengthAtPoint, pinSegment, polylineLength, shiftPins } from './connectors'
+import { applyPins, connectorGeometry, connectorHandles, connectorPolyline, END_GAP, lengthAtPoint, pinSegment, pinsApply, polylineLength, reverseConnector, segmentSnapValues, shiftPins, withoutIdlePins } from './connectors'
 import { planQuickAdd } from './quickAdd'
 
 const shape = (x: number, y: number, w = 200, h = 100): ShapeObject => ({ ...createShape('rect', x, y, 1), w, h })
@@ -269,5 +269,44 @@ describe('ends along a side', () => {
     map.set(a.id, { ...a, w: 400 })
     const after = connectorPolyline(c, (id) => map.get(id))!
     expect([after[0].x, after[0].y]).toEqual([300, 100])
+  })
+})
+
+describe('dragged segments over time', () => {
+  // A and B side by side, lined up: a straight line between their middles (y = 250).
+  const a = shape(100, 200)
+  const b = shape(600, 200)
+  const objects = (moved = b) => new Map<string, BoardObject>([[a.id, a], [moved.id, moved]])
+  const lookupWith = (moved = b) => (id: string) => objects(moved).get(id)
+  const line = createConnector({ objectId: a.id, side: 'right' }, { objectId: b.id, side: 'left' }, 3)
+
+  it('a segment dragged back in line lets the line route itself again', () => {
+    const lookup = lookupWith()
+    const detour = pinSegment(line, lookup, 0, 320)
+    expect(detour.pins).toBeDefined()
+    // 250, the shapes' middle, is off the 20px grid: it is one of the spots a segment snaps to.
+    expect(segmentSnapValues(detour, lookup, 'y')).toContain(250)
+    const back = withoutIdlePins(pinSegment(detour, lookup, 2, 250), lookup)
+    expect(back.pins).toBeUndefined()
+    expect(connectorPolyline(back, lookup)?.map((p) => [p.x, p.y])).toEqual([[300, 250], [600, 250]])
+  })
+
+  it('a detour holds while the shapes stay lined up, and lets go when they no longer are', () => {
+    const detour = pinSegment(line, lookupWith(), 0, 320)
+    expect(pinsApply(detour, lookupWith({ ...b, x: 700 }))).toBe(true)
+    expect(pinsApply(detour, lookupWith({ ...b, y: 40 }))).toBe(false)
+    // Let go, the line is routed as if it had never been dragged.
+    const up = lookupWith({ ...b, y: 40 })
+    expect(connectorPolyline(detour, up)).toEqual(connectorPolyline(line, up))
+  })
+
+  it('reversing keeps the path and turns the arrow round', () => {
+    const c = shape(400, 500)
+    const lookup = (id: string) => new Map<string, BoardObject>([[a.id, a], [c.id, c]]).get(id)
+    const bent = { ...pinSegment(createConnector({ objectId: a.id, side: 'right' }, { objectId: c.id, side: 'top' }, 3), lookup, 1, 360), labelPos: 0.25 }
+    const reversed = reverseConnector(bent)
+    expect(connectorPolyline(reversed, lookup)).toEqual([...connectorPolyline(bent, lookup)!].reverse())
+    expect([reversed.startCap, reversed.endCap]).toEqual([bent.startCap, bent.endCap])
+    expect(reversed.labelPos).toBe(0.75)
   })
 })

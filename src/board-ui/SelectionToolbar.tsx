@@ -1,5 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { ARROW_LENGTH, capPrimitives } from '@boardline/core/engine/caps'
+import { reverseConnector } from '@boardline/core/engine/connectors'
 import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
 import { MoreIcon, ShapeIcon, TableIcon } from './icons'
 import { IconGlyph, IconPicker } from './IconPicker'
@@ -565,11 +566,11 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
                 value={conn.startCap}
                 open={menu === 'startCap'}
                 onToggle={() => setMenu(menu === 'startCap' ? null : 'startCap')}
-                onPick={(cap) => apply(t('cap.end'), onConnectors((c) => ({ ...c, startCap: cap })))}
+                onPick={(cap) => apply(t('cap.start'), onConnectors((c) => ({ ...c, startCap: cap })))}
               />
               <button
                 title={t('line.reverse')}
-                onClick={() => apply(t('line.reverse'), onConnectors((c) => ({ ...c, from: c.to, to: c.from, startCap: c.endCap, endCap: c.startCap })))}
+                onClick={() => apply(t('line.reverse'), onConnectors(reverseConnector))}
               >
                 <ToolbarIcon d="M3 6.5h11.5M12 4l2.5 2.5L12 9M15 11.5H3.5M6 9l-2.5 2.5L6 14" />
               </button>

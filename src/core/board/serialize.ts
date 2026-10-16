@@ -102,6 +102,7 @@ function isValidPins(v: unknown): boolean {
   if (v === undefined) return true
   if (typeof v !== 'object' || v === null || !('at' in v)) return false
   const at = v.at
+  if ('base' in v && !isNum(v.base)) return false
   return Array.isArray(at) && at.every((e: unknown) => e === null || (typeof e === 'object' && (isNum((e as { x?: unknown }).x) || isNum((e as { y?: unknown }).y))))
 }
 

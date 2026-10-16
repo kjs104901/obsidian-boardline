@@ -243,13 +243,51 @@ export function connectorPolyline(c: ConnectorObject, lookup: Lookup): Point[] |
 function currentRoute(c: ConnectorObject, lookup: Lookup): Route | null {
   const r = autoRoute(c, lookup)
   if (!r || !c.pins || !r.pinnable) return r
-  const at = c.pins.at
-  if (at.length > 0 && !pinsFor(r.points, c.pins)) {
+  return pinnedRoute(r, c.pins) ?? r
+}
+
+/** The automatic route `r` with dragged segments `pins` applied, or null when they no longer fit it. */
+function pinnedRoute(r: Route, pins: SegmentPins): Route | null {
+  const at = pins.at
+  if (at.length > 0 && !pinsFor(r.points, pins)) {
+    // A route the user shaped holds while the ends keep the arrangement it was shaped in; one
+    // that no longer fits them is routed afresh.
+    if (pins.base !== undefined && pins.base !== r.points.length - 1) return null
     const own = at.every((p): p is SegmentPin => p !== null) ? ownRoute(r, at) : null
-    // A route that no longer fits the ends is routed afresh.
-    return own ? { ...r, points: own, own: true } : r
+    return own ? { ...r, points: own, own: true } : null
   }
-  return { ...r, points: placePins(r.points, c.pins, r.startAttached, r.endAttached) }
+  return { ...r, points: placePins(r.points, pins, r.startAttached, r.endAttached) }
+}
+
+/** Whether the connector's dragged segments still shape its route (else it is routed as if it had none). */
+export function pinsApply(c: ConnectorObject, lookup: Lookup): boolean {
+  const r = c.pins ? autoRoute(c, lookup) : null
+  return !!r && !!c.pins && r.pinnable && pinnedRoute(r, c.pins) !== null
+}
+
+/**
+ * The connector without its dragged segments when they make no difference (the line runs just
+ * as it would by itself), so it goes on routing itself.
+ */
+export function withoutIdlePins(c: ConnectorObject, lookup: Lookup): ConnectorObject {
+  if (!c.pins) return c
+  const auto = autoRoute(c, lookup)
+  const cur = connectorPolyline(c, lookup)
+  if (!auto || !cur) return c
+  const plain = simplify(auto.points)
+  const same = plain.length === cur.length && plain.every((p, i) => Math.abs(p.x - cur[i].x) < 0.5 && Math.abs(p.y - cur[i].y) < 0.5)
+  if (!same) return c
+  const { pins: _pins, ...rest } = c
+  return rest
+}
+
+/**
+ * Where a dragged segment of `c` lines up with the line's own course along `axis`: the ends and
+ * the corners of the automatic route (dropped there, the line runs straight, or as it would).
+ */
+export function segmentSnapValues(c: ConnectorObject, lookup: Lookup, axis: 'x' | 'y'): number[] {
+  const r = autoRoute(c, lookup)
+  return r ? r.points.map((p) => p[axis]) : []
 }
 
 // ---- dragged segments --------------------------------------------------------------
@@ -395,16 +433,17 @@ export function pinSegment(c: ConnectorObject, lookup: Lookup, index: number, va
   const axis = segmentAxis(pts[index], pts[index + 1])
   if (!axis) return c
   // An end's own segment: jog out of the end; the route becomes the user's own.
+  const base = auto.points.length - 1
   if (index === 0 || index === last) {
     const own = segmentsOf(simplify(jog(pts, index, axis, value)))
-    return own ? { ...c, pins: { at: own } } : c
+    return own ? { ...c, pins: { at: own, base } } : c
   }
   // A route the user shaped keeps every segment; the dragged one takes the new value.
   if (cur.own) {
     const own = segmentsOf(pts)
     if (!own) return c
     own[index] = pinOf(axis, value)
-    return { ...c, pins: { at: own } }
+    return { ...c, pins: { at: own, base } }
   }
   const ap = auto.points
   const kept = c.pins ? pinsFor(ap, c.pins) : null
@@ -412,9 +451,25 @@ export function pinSegment(c: ConnectorObject, lookup: Lookup, index: number, va
   return { ...c, pins: { at } }
 }
 
+/**
+ * The line pointing the other way: its ends trade places while the arrowheads stay put, so an
+ * arrow from A to B becomes one from B to A along the same path (dragged segments and the
+ * label stay where they are).
+ */
+export function reverseConnector(c: ConnectorObject): ConnectorObject {
+  const { pins, labelPos, ...rest } = c
+  return {
+    ...rest,
+    from: c.to,
+    to: c.from,
+    ...(pins ? { pins: { ...pins, at: [...pins.at].reverse() } } : {}),
+    ...(labelPos !== undefined ? { labelPos: 1 - labelPos } : {}),
+  }
+}
+
 /** Pins of a connector moved by (dx, dy) along with both its ends. */
 export function shiftPins(pins: SegmentPins, dx: number, dy: number): SegmentPins {
-  return { at: pins.at.map((p) => (!p ? null : 'x' in p ? { x: p.x + dx } : { y: p.y + dy })) }
+  return { ...pins, at: pins.at.map((p) => (!p ? null : 'x' in p ? { x: p.x + dx } : { y: p.y + dy })) }
 }
 
 export interface SegmentHandle {

@@ -70,14 +70,16 @@ function basePathData(kind: ShapeKind, r: Rect): string {
       return `M${r.x + s} ${r.y}H${r.x + r.w - s}L${r.x + r.w} ${cy}L${r.x + r.w - s} ${r.y + r.h}H${r.x + s}L${r.x} ${cy}Z`
     }
     case 'cylinder': {
-      // Outline plus the front edge of the top ellipse (an open subpath: stroked, not filled).
+      // Outline plus the front edge of the top ellipse. That edge is drawn clockwise like the
+      // outline: filling closes it into a sliver, which would cut a hole in the lid if it ran the
+      // other way (nonzero fill).
       const rx = r.w / 2
       const ry = Math.min(14, r.h / 6)
       const top = r.y + ry
       const bottom = r.y + r.h - ry
       return (
         `M${r.x} ${top}A${rx} ${ry} 0 0 1 ${r.x + r.w} ${top}V${bottom}A${rx} ${ry} 0 0 1 ${r.x} ${bottom}Z` +
-        `M${r.x} ${top}A${rx} ${ry} 0 0 0 ${r.x + r.w} ${top}`
+        `M${r.x + r.w} ${top}A${rx} ${ry} 0 0 1 ${r.x} ${top}`
       )
     }
     case 'document':
