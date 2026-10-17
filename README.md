@@ -13,7 +13,7 @@ Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence dia
 - **Mind maps**: `Tab` adds a child, `Enter` a sibling. Layout and branch colors are automatic; drop a node next to another to make it a child, and `/` folds a branch.
 - **Sequence diagrams**: actors with lifelines, messages that follow their actors, reordering by dragging.
 - **Tables** with header rows, Markdown in cells and resizable columns.
-- **Sticky notes, text, sections, groups and locking.** Sections are frames that carry what's inside them.
+- **Sticky notes, text, sections, groups and locking.** Sections are frames that carry what's inside them. Select several objects and drag a corner of their box to scale them together.
 - **Drawing**: pen, highlighter, eraser and lasso.
 - **Icons**: 1,500+ [Phosphor](https://phosphoricons.com) icons in three styles.
 - **Your vault on the board**: notes as live cards with rendered Markdown, pictures, other boards and canvases, and web links with previews. Moving or renaming a file updates every board that shows it.
@@ -29,6 +29,7 @@ Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence dia
 - **New board**: the ribbon's board icon, **Boardline: New board** in the command palette, or right-click a folder in the file explorer.
 - **Open a board**: click any `.board` file.
 - **Every shortcut** is in the board's help: press `?` (`Shift+/`) or the help button at the right edge.
+- **Commands**: presenting, find and replace, version history, zoom, auto layout, export and Mermaid import are also commands (**Boardline: …** in the command palette). They have no hotkeys of their own; give them any in **Settings → Hotkeys**.
 
 | Key | Tool | Key | Tool |
 |---|---|---|---|
@@ -42,7 +43,7 @@ Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence dia
 
 `Ctrl` shortcuts also work with `Cmd` on macOS. Single-letter shortcuts follow the key, so they work with Korean, Japanese and other input modes.
 
-While a board has focus, it uses a few keys that Obsidian also uses (`Ctrl+B/I/E/F/H/G/D/L/0/=/-`, `Ctrl+Enter`, `Alt+Enter`) for the same kind of action on the board: bold, italic, find, group and so on. Outside the board they work as usual.
+The board's own shortcuts work while a board has focus, like Obsidian's canvas, so they aren't listed in Settings → Hotkeys. While a board has focus, it uses a few keys that Obsidian also uses (`Ctrl+B/I/E/F/H/G/D/L/0/=/-`, `Ctrl+Enter`, `Alt+Enter`) for the same kind of action on the board: bold, italic, find, group and so on. Outside the board they work as usual.
 
 ## Where your data lives
 

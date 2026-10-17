@@ -52,6 +52,11 @@ export class BoardFileView extends TextFileView {
     this.scope.register(['Alt'], 'Enter', () => true)
   }
 
+  /** The board's controller while it is open (for the plugin's commands). */
+  get board(): BoardController | null {
+    return this.controller.current
+  }
+
   getViewType(): string {
     return VIEW_TYPE_BOARD
   }

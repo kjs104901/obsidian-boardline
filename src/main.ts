@@ -1,12 +1,13 @@
 // Boardline for Obsidian: whiteboards (.board files) inside the vault, drawn by the board
 // engine (src/core) and the board UI (src/board-ui).
 
-import { Notice, Plugin, TFile, TFolder, getLanguage, normalizePath } from 'obsidian'
+import { Notice, Platform, Plugin, TFile, TFolder, getLanguage, normalizePath } from 'obsidian'
 import { parseLink } from '@boardline/core/board/links'
 import { boardFileName, emptyBoardFile, formatBoardFile, parseBoard, serialize, titleFromFileName } from '@boardline/core/board/serialize'
 import { updateOp } from '@boardline/core/board/document'
 import { mayLinkTo, relinkObjects } from '@boardline/core/board/relink'
 import { followHostLook } from '@boardline/core/theme/follow'
+import type { BoardController } from '@boardline/board-ui/BoardScreen'
 import { BoardFileView, VIEW_TYPE_BOARD } from './BoardFileView'
 import { boardIdOf } from './dialogs'
 import { clearEmbedCache, registerBoardEmbeds } from './embeds'
@@ -39,6 +40,7 @@ export default class BoardlinePlugin extends Plugin {
 
     this.addRibbonIcon('layout-dashboard', t('board.newName'), () => void this.createBoard())
     this.addCommand({ id: 'new-board', name: t('board.newName'), callback: () => void this.createBoard() })
+    this.addBoardCommands()
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file) => {
         const folder = file instanceof TFolder ? file : file.parent
@@ -96,6 +98,41 @@ export default class BoardlinePlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings)
+  }
+
+  /**
+   * What a board does, as commands for the board in focus: in the command palette and in
+   * Settings > Hotkeys, where any key can be given to them (none by default). The board's own
+   * keys (Shift+/ lists them) work while it has the focus, like Obsidian's canvas.
+   */
+  private addBoardCommands(): void {
+    const command = (id: string, name: string, run: (c: BoardController) => void, when: (c: BoardController) => boolean = () => true) =>
+      this.addCommand({
+        id,
+        name,
+        checkCallback: (checking) => {
+          const board = this.app.workspace.getActiveViewOfType(BoardFileView)?.board
+          if (!board || !when(board)) return false
+          if (!checking) run(board)
+          return true
+        },
+      })
+    // Presenting ends with Esc: not on phones and tablets, which have none.
+    if (!Platform.isMobile) command('present', t('present'), (c) => c.startPresenting())
+    command('find', t('find.placeholder'), (c) => c.openFind())
+    command('find-replace', t('command.replace'), (c) => c.openFind(undefined, true), (c) => !c.editor.isReadOnly())
+    command('version-history', t('history.title'), (c) => c.toggleHistory())
+    command('zoom-to-fit', t('view.fit'), (c) => c.editor.zoomToFit(false))
+    command('zoom-in', t('view.zoomIn'), (c) => c.editor.zoomBy(1.25))
+    command('zoom-out', t('view.zoomOut'), (c) => c.editor.zoomBy(1 / 1.25))
+    command('zoom-reset', t('view.actualSize'), (c) => c.editor.resetZoom())
+    command('auto-layout-down', `${t('layout.auto')}: ${t('layout.down')}`, (c) => void c.editor.autoLayout('DOWN'), (c) => !c.editor.isReadOnly())
+    command('auto-layout-right', `${t('layout.auto')}: ${t('layout.right')}`, (c) => void c.editor.autoLayout('RIGHT'), (c) => !c.editor.isReadOnly())
+    command('export-png', t('command.exportPng'), (c) => void c.exportImage('png'))
+    command('export-svg', t('command.exportSvg'), (c) => void c.exportImage('svg'))
+    command('export-note', t('export.note'), (c) => void c.exportNote?.(), (c) => !!c.exportNote)
+    command('export-canvas', t('export.canvas'), (c) => void c.exportCanvas?.(), (c) => !!c.exportCanvas)
+    command('import-mermaid', t('mermaid.importMenu'), (c) => c.importMermaid(), (c) => !c.editor.isReadOnly())
   }
 
   /** Boards take Obsidian's light/dark mode, note background and interface font. */

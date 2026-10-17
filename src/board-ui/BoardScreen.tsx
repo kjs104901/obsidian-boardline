@@ -87,7 +87,8 @@ export interface BoardController {
   exportImage(format: ExportFormat): Promise<void>
   importMermaid(): void
   toggleHistory(): void
-  openFind(query?: string): void
+  /** Open find (with replace too), on `query` or what was found last. */
+  openFind(query?: string, replace?: boolean): void
   /** The selection (or the board) as a new note; absent where the app can't save notes. */
   exportNote?(): Promise<void>
   /** The selection (or the board) as a new Obsidian canvas; absent where the app can't save one. */
@@ -357,7 +358,7 @@ export function BoardScreen({ doc, title, host, preserveCurrent, onStatus, contr
       exportImage: (f) => exportRef.current(f),
       importMermaid: () => void mermaidRef.current(),
       toggleHistory: () => setHistoryOpen((v) => !v),
-      openFind: (query) => setFind((f) => ({ query: query ?? f?.query ?? '', key: Date.now() })),
+      openFind: (query, replace) => setFind((f) => ({ query: query ?? f?.query ?? '', key: Date.now(), ...(replace ? { replace: true } : {}) })),
       ...(hostRef.current.saveNote ? { exportNote: () => exportNoteRef.current() } : {}),
       ...(hostRef.current.saveCanvas ? { exportCanvas: () => exportCanvasRef.current() } : {}),
     }
