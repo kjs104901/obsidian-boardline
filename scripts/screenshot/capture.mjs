@@ -1,7 +1,7 @@
 // Pictures of demo boards: serves scripts/screenshot/ with Vite, opens the pages in a headless
 // Edge or Chrome, and captures each once its board is drawn.
-//   node scripts/screenshot/capture.mjs [out.png]   the README's screenshot (docs/images/board.png)
-//   node scripts/screenshot/capture.mjs listing     the community directory's (docs/listing/*.png, 1200x800 at 2x)
+//   node scripts/screenshot/capture.mjs [out.png]   the demo board (board.png here by default)
+//   node scripts/screenshot/capture.mjs listing     the community directory's, the first also the README's (docs/listing/*.png, 1200x800 at 2x)
 // BROWSER=<path> picks the browser.
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -21,7 +21,7 @@ const jobs =
         { page: 'index.html?dark', width: 1200, height: 800, out: here('../../docs/listing/2-flowcharts.png') },
         { page: 'index.html?scene=notes', width: 1200, height: 800, out: here('../../docs/listing/3-notes.png') },
       ]
-    : [{ page: 'index.html', width: 1440, height: 860, out: path.resolve(process.argv[2] ?? here('../../docs/images/board.png')) }]
+    : [{ page: 'index.html', width: 1440, height: 860, out: path.resolve(process.argv[2] ?? 'board.png') }]
 const SCALE = 2
 
 const BROWSERS = [

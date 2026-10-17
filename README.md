@@ -4,7 +4,7 @@ English · [한국어](README.ko.md)
 
 Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence diagrams, tables and sticky notes, and put your notes, pictures and other boards right on the board. Each board is one `.board` file in your vault: no server, no account. Works on desktop, phones and tablets.
 
-![A board with a flowchart in a section, a mind map and sticky notes](docs/images/board.png)
+![Boardline: whiteboards in your Obsidian vault, with a flowchart in a section, a mind map and sticky notes](docs/listing/1-boardline.png)
 
 ## Features
 
@@ -90,8 +90,8 @@ npm run dev -- --vault /path/to/test/vault
 | `npm run typecheck` | TypeScript |
 | `npm run lint` | Obsidian's review rules ([eslint-plugin-obsidianmd](https://github.com/obsidianmd/eslint-plugin)) |
 | `npm test` | Unit tests (Vitest) |
-| `npm run screenshot` | Redraws `docs/images/board.png` from a demo board (needs Edge or Chrome) |
-| `npm run listing` | Redraws the community directory's pictures in `docs/listing/` |
+| `npm run screenshot` | Takes a picture of the demo board: `npm run screenshot -- out.png` (needs Edge or Chrome) |
+| `npm run listing` | Redraws the README's and the community directory's pictures in `docs/listing/` |
 | `npm version patch` | Bumps `package.json`, `manifest.json` and `versions.json`, commits and tags |
 
 Pushing a tag (`git push --follow-tags`) runs the release workflow, which checks, builds and drafts a GitHub release with `main.js`, `manifest.json` and `styles.css`.

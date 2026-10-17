@@ -175,7 +175,7 @@ Obsidian은 `main.js`·`manifest.json`·`styles.css` 세 파일만 받으므로 
    - `git remote add origin https://github.com/kjs104901/obsidian-boardline.git` → `git push -u origin main`.
    - 저장소 About에 설명과 주제(`obsidian-plugin`, `whiteboard`, `flowchart`, `mind-map`)를 넣는다.
    - CI(`.github/workflows/ci.yml`)가 푸시마다 타입·lint·테스트·빌드를 돈다.
-3. **README 스크린샷·GIF** — ✅ 스크린샷 `docs/images/board.png`(`npm run screenshot`로 다시 찍음). GIF는 선택
+3. **README 스크린샷·GIF** — ✅ 커뮤니티 디렉터리 첫 이미지 `docs/listing/1-boardline.png`를 같이 쓴다(`npm run listing`으로 다시 찍음). GIF는 선택
    - 데모 보드는 `scripts/screenshot/main.tsx`에서 고친다. GIF를 더한다면 마인드맵 만들기, 연결선 끌기, 발표 화면이 좋다(커뮤니티 디렉터리와 Obsidian 플러그인 화면은 README를 그대로 보여 준다).
 4. **첫 릴리스 1.0.0**
    - 버전은 이미 1.0.0이므로 `git tag 1.0.0` → `git push origin 1.0.0`. 다음부터는 `npm version patch` → `git push --follow-tags`.

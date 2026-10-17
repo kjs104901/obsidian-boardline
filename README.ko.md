@@ -4,7 +4,7 @@
 
 Obsidian 보관함 안에서 쓰는 화이트보드 플러그인이다. 플로차트·마인드맵·시퀀스 다이어그램·표·스티키 노트를 그리고, 보관함의 노트·그림·다른 보드를 함께 올려 둔다. 보드 하나가 `.board` 파일 하나이고, 서버나 계정 없이 보관함 안에만 저장한다. 휴대폰·태블릿의 Obsidian에서도 동작하도록 만들었다(두 손가락으로 확대·이동, 좁은 화면에서는 도구 막대가 아래로).
 
-![섹션 안의 플로차트, 마인드맵, 스티키 노트가 있는 보드](docs/images/board.png)
+![Boardline: Obsidian 보관함 안의 화이트보드. 섹션 안의 플로차트, 마인드맵, 스티키 노트](docs/listing/1-boardline.png)
 
 ## 빌드와 개발
 
@@ -17,8 +17,8 @@ Obsidian 보관함 안에서 쓰는 화이트보드 플러그인이다. 플로�
 | 테스트 | `npm test` |
 | 타입 검사 | `npm run typecheck` |
 | Obsidian 리뷰 규칙 검사 | `npm run lint` (eslint-plugin-obsidianmd) |
-| README 스크린샷 다시 찍기 | `npm run screenshot` → `docs/images/board.png` (Edge나 Chrome 필요) |
-| 커뮤니티 디렉터리 이미지 다시 찍기 | `npm run listing` → `docs/listing/` (1200×800 비율, 2배 크기) |
+| 데모 보드 사진 찍기 | `npm run screenshot -- out.png` (Edge나 Chrome 필요) |
+| README·커뮤니티 디렉터리 이미지 다시 찍기 | `npm run listing` → `docs/listing/` (1200×800 비율, 2배 크기. README는 `1-boardline.png`) |
 | 새 버전 | `npm version patch` (아래 [출시](#출시)) |
 
 개인용으로 설치하려면 `main.js`, `styles.css`, `manifest.json`을 `<보관함>/.obsidian/plugins/boardline/`에 넣고, Obsidian 설정 > 커뮤니티 플러그인에서 Boardline을 켠다. 개발 중에는 `npm run dev -- --vault …`가 빌드할 때마다 파일을 넣어 주므로 Obsidian에서 `Reload app without saving`(Ctrl+R)만 하면 된다.
