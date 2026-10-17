@@ -124,8 +124,10 @@ import {
   corners,
   cropHandles,
   drawBounds,
+  type Corner,
   type ResizeHandle,
 } from './renderer'
+import { minScale, scaleObject } from './scale'
 import { UNFILLED, shapePath } from './shapes'
 import { borderPoint, nearestBorder, positionOn } from './outline'
 import { shortcutKey } from './keys'
@@ -278,6 +280,8 @@ type Interaction =
   /** From the "add message" circle: click sends to the next actor, drag picks the target. */
   | { kind: 'message'; actorId: string; dy: number; downScreen: Point; dragging: boolean; current: Point; targetId: string | null }
   | { kind: 'resize'; corner: ResizeHandle; original: ShapeObject; downScreen: Point; downBoard: Point; dragging: boolean }
+  /** Several objects scaled together by a corner of their box. */
+  | { kind: 'scale'; corner: Corner; box: Rect; originals: Map<string, BoardObject>; downScreen: Point; dragging: boolean }
   | { kind: 'marquee'; downBoard: Point; current: Point; base: Set<string> }
   | { kind: 'create'; shape: ShapeKind; downScreen: Point; downBoard: Point; current: Point; dragging: boolean }
   /** Mind map tool: the root is placed on release, so the click can't steal the editor's focus. */
@@ -1359,6 +1363,7 @@ export class BoardEditor {
       lasso,
       ghost,
       showHandles: it.kind !== 'move' && it.kind !== 'connect' && !this.editing && !this.cropping,
+      groupBox: it.kind === 'idle' || it.kind === 'scale' || it.kind === 'press' ? this.groupBox() : null,
       crop: this.cropping,
       guides: this.guides,
       dots,
@@ -1609,6 +1614,62 @@ export class BoardEditor {
     if (p.y > o.y && p.y < o.y + o.h && Math.abs(p.x - o.x) <= band) return 'w'
     if (p.y > o.y && p.y < o.y + o.h && Math.abs(p.x - (o.x + o.w)) <= band) return 'e'
     return null
+  }
+
+  /**
+   * The box around a selection of several objects that scale together by its corners: none
+   * locked, and at least one shape or mind map (lines and nodes come along).
+   */
+  private groupBox(): Rect | null {
+    if (this.selection.size < 2 || this.readOnly || this.tool.kind !== 'select' || this.editing) return null
+    const layout = this.layout()
+    const rects: Rect[] = []
+    let scalable = false
+    for (const id of this.selection) {
+      const o = this.lookup(id)
+      if (!o || o.locked) return null
+      if (isConnector(o)) {
+        const g = connectorGeometry(o, this.lookup)
+        if (g) rects.push(polylineBounds(g.points))
+        continue
+      }
+      const r = this.rectOf(o, layout)
+      if (r) rects.push(r)
+      if (isShape(o) || !o.parentId) scalable = true
+    }
+    return scalable ? unionRects(rects) : null
+  }
+
+  private hitGroupHandle(p: Point): Corner | null {
+    const box = this.groupBox()
+    if (!box) return null
+    const r = (HANDLE_SIZE / 2 + 3) / this.viewport.zoom
+    for (const [x, y, corner] of corners(box)) {
+      if (Math.abs(p.x - x) <= r && Math.abs(p.y - y) <= r) return corner
+    }
+    return null
+  }
+
+  /** Scale the selection about the corner opposite the dragged one, keeping proportions. */
+  private updateScale(it: Extract<Interaction, { kind: 'scale' }>, bp: Point, e: MouseEvent): void {
+    const { box, corner } = it
+    const dirX = corner === 'ne' || corner === 'se' ? 1 : -1
+    const dirY = corner === 'sw' || corner === 'se' ? 1 : -1
+    const anchor = { x: dirX > 0 ? box.x : box.x + box.w, y: dirY > 0 ? box.y : box.y + box.h }
+    const fx = box.w > 0 ? ((bp.x - anchor.x) * dirX) / box.w : 0
+    const fy = box.h > 0 ? ((bp.y - anchor.y) * dirY) / box.h : 0
+    let s = Math.max(fx, fy)
+    // On the grid, the side that follows the pointer lands on a grid line.
+    const mode = this.snapOptions(e).mode
+    if (mode === 'full' || mode === 'grid') {
+      if (fx >= fy && box.w > 0) s = ((snap(anchor.x + dirX * box.w * s) - anchor.x) * dirX) / box.w
+      else if (box.h > 0) s = ((snap(anchor.y + dirY * box.h * s) - anchor.y) * dirY) / box.h
+    }
+    s = Math.max(s, minScale(it.originals.values(), MIN_SHAPE_SIZE), 0.05)
+    const ids = new Set(it.originals.keys())
+    for (const [id, o] of it.originals) this.preview.set(id, scaleObject(o, anchor, s, ids, measureAt))
+    this.guides = []
+    this.requestRender()
   }
 
   /** End or segment handle of the selected connector under the point. */
@@ -1865,6 +1926,13 @@ export class BoardEditor {
       this.interaction = { kind: 'resize', corner, original: resizable, downScreen: sp, downBoard: bp, dragging: false }
       return
     }
+    const groupCorner = this.hitGroupHandle(bp)
+    const box = groupCorner ? this.groupBox() : null
+    if (groupCorner && box) {
+      const originals = new Map([...this.selection].map((id) => [id, this.doc.get(id)]).filter((e): e is [string, BoardObject] => !!e[1]))
+      this.interaction = { kind: 'scale', corner: groupCorner, box, originals, downScreen: sp, dragging: false }
+      return
+    }
     this.interaction = { kind: 'press', downScreen: sp, downBoard: bp, hitId: this.hitTest(bp), shift: e.shiftKey, alt: e.altKey, touch: e.pointerType === 'touch' }
   }
 
@@ -1916,6 +1984,11 @@ export class BoardEditor {
       }
       case 'move':
         this.updateMove(it, bp, e)
+        return
+      case 'scale':
+        if (!it.dragging && distance(sp, it.downScreen) < DRAG_THRESHOLD) return
+        it.dragging = true
+        this.updateScale(it, bp, e)
         return
       case 'resize':
         // Small elements are mostly corner handles; only a real drag resizes.
@@ -2086,6 +2159,9 @@ export class BoardEditor {
       case 'move':
         this.reorderActors(it)
         this.commitPreview(t('undo.move'), it.originals, it.copies)
+        break
+      case 'scale':
+        if (it.dragging) this.commitPreview(t('undo.resize'), it.originals)
         break
       case 'resize':
         if (it.dragging) this.commitPreview(t('undo.resize'), new Map([[it.original.id, it.original]]))
@@ -2309,7 +2385,7 @@ export class BoardEditor {
     }
     const dot = this.hitDot(bp)
     this.setHoverDot(dot)
-    const corner = dot ? null : this.hitHandle(bp)
+    const corner = dot ? null : (this.hitHandle(bp) ?? this.hitGroupHandle(bp))
     const hit = dot || corner ? null : this.hitTest(bp)
     if (this.tool.kind === 'select' && !this.spaceHeld) {
       this.setCursor(dot ? 'pointer' : corner ? RESIZE_CURSOR[corner] : hit ? 'move' : 'default')

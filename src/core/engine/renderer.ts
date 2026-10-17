@@ -74,6 +74,8 @@ export interface RenderState {
   marquee: Rect | null
   ghost: { shape: ShapeKind; rect: Rect } | null
   showHandles: boolean
+  /** Several selected objects scaled together: their box, with corner handles. */
+  groupBox?: Rect | null
   guides: Guide[]
   /** Connection (or add-actor) dots on the single selected shape; all four sides by default. */
   /** Side dots; `at`: a line end pinned along the hovered side there instead of its middle. */
@@ -239,6 +241,7 @@ export class Renderer {
       const only = selected[0]
       // Tables and links size themselves, so they have no resize handles.
       if (selected.length === 1 && !isConnector(only) && !isMindmap(only) && !only.locked && only.shape !== 'table' && only.shape !== 'link') this.drawHandles(vp, only)
+      if (s.groupBox) this.drawGroupBox(vp, s.groupBox)
     }
     if (s.connectorHandles) this.drawConnectorHandles(vp, s.connectorHandles)
     if (s.tableCell) this.drawActiveCell(vp, s)
@@ -1001,6 +1004,21 @@ export class Renderer {
       ctx.strokeRect(o.x, o.y, o.w, o.h)
     }
     ctx.restore()
+  }
+
+  /** The box around several selected objects, with a handle at each corner to scale them. */
+  private drawGroupBox(vp: Viewport, r: Rect): void {
+    const { ctx } = this
+    const s = HANDLE_SIZE / vp.zoom
+    ctx.strokeStyle = theme.selection
+    ctx.lineWidth = 1 / vp.zoom
+    ctx.strokeRect(r.x, r.y, r.w, r.h)
+    ctx.fillStyle = theme.handleFill
+    ctx.lineWidth = 1.5 / vp.zoom
+    for (const [hx, hy] of corners(r)) {
+      ctx.fillRect(hx - s / 2, hy - s / 2, s, s)
+      ctx.strokeRect(hx - s / 2, hy - s / 2, s, s)
+    }
   }
 
   private drawHandles(vp: Viewport, o: ShapeObject): void {
