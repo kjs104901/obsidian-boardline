@@ -159,6 +159,8 @@ export const zh: Messages = {
   'help.otherShapes': '其他形状',
   'help.pan': '移动视图',
   'help.penMarker': '笔 · 荧光笔',
+  'help.resizeKeys': 'Shift / Alt + 手柄',
+  'help.resizeKeysDesc': '保持比例调整大小 · 以中心为基准',
   'help.shiftDrag': 'Shift+拖动',
   'help.shiftDragDesc': '沿单一方向移动',
   'help.snapDrag': 'Ctrl+拖动 / `+拖动',

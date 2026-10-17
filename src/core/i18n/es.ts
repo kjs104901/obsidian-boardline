@@ -159,6 +159,8 @@ export const es: Messages = {
   'help.otherShapes': 'Otras formas',
   'help.pan': 'Mover la vista',
   'help.penMarker': 'Lápiz · resaltador',
+  'help.resizeKeys': 'Shift / Alt + tirador',
+  'help.resizeKeysDesc': 'Cambiar el tamaño manteniendo las proporciones · desde el centro',
   'help.shiftDrag': 'Shift+arrastrar',
   'help.shiftDragDesc': 'Mover en una dirección',
   'help.snapDrag': 'Ctrl+arrastrar / `+arrastrar',

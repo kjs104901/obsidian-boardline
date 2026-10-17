@@ -38,6 +38,7 @@ function sections(): ShortcutSection[] {
         ['Ctrl+D', t('edit.duplicate')],
         [t('help.altDrag'), t('help.altDragDesc')],
         [t('help.shiftDrag'), t('help.shiftDragDesc')],
+        [t('help.resizeKeys'), t('help.resizeKeysDesc')],
         [t('help.snapDrag'), t('help.snapDragDesc')],
         [t('help.arrows'), t('help.arrowsDesc')],
         ['Ctrl+G / Ctrl+Shift+G', t('help.group')],

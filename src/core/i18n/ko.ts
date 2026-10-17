@@ -159,6 +159,8 @@ export const ko: Messages = {
   'help.otherShapes': '그 밖의 도형',
   'help.pan': '화면 이동',
   'help.penMarker': '펜 · 형광펜',
+  'help.resizeKeys': 'Shift / Alt + 핸들',
+  'help.resizeKeysDesc': '비율 유지하며 크기 조절 · 가운데 기준으로',
   'help.shiftDrag': 'Shift+끌기',
   'help.shiftDragDesc': '한 방향으로 옮기기',
   'help.snapDrag': 'Ctrl+끌기 / `+끌기',

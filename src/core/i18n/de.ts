@@ -159,6 +159,8 @@ export const de: Messages = {
   'help.otherShapes': 'Weitere Formen',
   'help.pan': 'Ansicht verschieben',
   'help.penMarker': 'Stift · Textmarker',
+  'help.resizeKeys': 'Umschalt / Alt + Griff',
+  'help.resizeKeysDesc': 'Größe proportional ändern · von der Mitte aus',
   'help.shiftDrag': 'Umschalt+Ziehen',
   'help.shiftDragDesc': 'In eine Richtung verschieben',
   'help.snapDrag': 'Strg+Ziehen / `+Ziehen',

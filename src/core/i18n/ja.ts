@@ -159,6 +159,8 @@ export const ja: Messages = {
   'help.otherShapes': 'その他の図形',
   'help.pan': '画面を移動',
   'help.penMarker': 'ペン · 蛍光ペン',
+  'help.resizeKeys': 'Shift / Alt + ハンドル',
+  'help.resizeKeysDesc': '縦横比を保ってサイズ変更 · 中央を基準に',
   'help.shiftDrag': 'Shift+ドラッグ',
   'help.shiftDragDesc': '一方向に移動',
   'help.snapDrag': 'Ctrl+ドラッグ / `+ドラッグ',

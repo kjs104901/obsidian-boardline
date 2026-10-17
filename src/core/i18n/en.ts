@@ -158,6 +158,8 @@ export const en = {
   'help.otherShapes': 'Other shapes',
   'help.pan': 'Move the view',
   'help.penMarker': 'Pen · highlighter',
+  'help.resizeKeys': 'Shift / Alt + handle',
+  'help.resizeKeysDesc': 'Resize keeping proportions · from the middle',
   'help.shiftDrag': 'Shift+drag',
   'help.shiftDragDesc': 'Move in one direction',
   'help.snapDrag': 'Ctrl+drag / `+drag',

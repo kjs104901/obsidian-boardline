@@ -159,6 +159,8 @@ export const fr: Messages = {
   'help.otherShapes': 'Autres formes',
   'help.pan': 'Déplacer la vue',
   'help.penMarker': 'Stylo · surligneur',
+  'help.resizeKeys': 'Maj / Alt + poignée',
+  'help.resizeKeysDesc': 'Redimensionner en gardant les proportions · depuis le centre',
   'help.shiftDrag': 'Maj+glisser',
   'help.shiftDragDesc': 'Déplacer dans une seule direction',
   'help.snapDrag': 'Ctrl+glisser / `+glisser',

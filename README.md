@@ -13,7 +13,7 @@ Whiteboards inside your Obsidian vault. Draw flowcharts, mind maps, sequence dia
 - **Mind maps**: `Tab` adds a child, `Enter` a sibling. Layout and branch colors are automatic; drop a node next to another to make it a child, and `/` folds a branch.
 - **Sequence diagrams**: actors with lifelines, messages that follow their actors, reordering by dragging.
 - **Tables** with header rows, Markdown in cells and resizable columns.
-- **Sticky notes, text, sections, groups and locking.** Sections are frames that carry what's inside them. Select several objects and drag a corner of their box to scale them together.
+- **Sticky notes, text, sections, groups and locking.** Sections are frames that carry what's inside them. Select several objects and drag a corner or an edge of their box to resize them together; Shift keeps proportions and Alt resizes from the middle, for one object too.
 - **Drawing**: pen, highlighter, eraser and lasso.
 - **Icons**: 1,500+ [Phosphor](https://phosphoricons.com) icons in three styles.
 - **Your vault on the board**: notes as live cards with rendered Markdown, pictures, other boards and canvases, and web links with previews. Moving or renaming a file updates every board that shows it.

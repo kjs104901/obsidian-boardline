@@ -124,10 +124,9 @@ import {
   corners,
   cropHandles,
   drawBounds,
-  type Corner,
   type ResizeHandle,
 } from './renderer'
-import { minScale, scaleObject } from './scale'
+import { minScales, scaleObject } from './scale'
 import { UNFILLED, shapePath } from './shapes'
 import { borderPoint, nearestBorder, positionOn } from './outline'
 import { shortcutKey } from './keys'
@@ -281,7 +280,7 @@ type Interaction =
   | { kind: 'message'; actorId: string; dy: number; downScreen: Point; dragging: boolean; current: Point; targetId: string | null }
   | { kind: 'resize'; corner: ResizeHandle; original: ShapeObject; downScreen: Point; downBoard: Point; dragging: boolean }
   /** Several objects scaled together by a corner of their box. */
-  | { kind: 'scale'; corner: Corner; box: Rect; originals: Map<string, BoardObject>; downScreen: Point; dragging: boolean }
+  | { kind: 'scale'; corner: ResizeHandle; box: Rect; originals: Map<string, BoardObject>; downScreen: Point; dragging: boolean }
   | { kind: 'marquee'; downBoard: Point; current: Point; base: Set<string> }
   | { kind: 'create'; shape: ShapeKind; downScreen: Point; downBoard: Point; current: Point; dragging: boolean }
   /** Mind map tool: the root is placed on release, so the click can't steal the editor's focus. */
@@ -1640,34 +1639,57 @@ export class BoardEditor {
     return scalable ? unionRects(rects) : null
   }
 
-  private hitGroupHandle(p: Point): Corner | null {
+  /** A corner (both ways) or an edge (one way) of the selection's box under the point. */
+  private hitGroupHandle(p: Point): ResizeHandle | null {
     const box = this.groupBox()
     if (!box) return null
-    const r = (HANDLE_SIZE / 2 + 3) / this.viewport.zoom
+    const zoom = this.viewport.zoom
+    const r = (HANDLE_SIZE / 2 + 3) / zoom
     for (const [x, y, corner] of corners(box)) {
       if (Math.abs(p.x - x) <= r && Math.abs(p.y - y) <= r) return corner
     }
+    const band = EDGE_GRAB / zoom
+    const alongX = p.x > box.x && p.x < box.x + box.w
+    const alongY = p.y > box.y && p.y < box.y + box.h
+    if (alongX && Math.abs(p.y - box.y) <= band) return 'n'
+    if (alongX && Math.abs(p.y - (box.y + box.h)) <= band) return 's'
+    if (alongY && Math.abs(p.x - box.x) <= band) return 'w'
+    if (alongY && Math.abs(p.x - (box.x + box.w)) <= band) return 'e'
     return null
   }
 
-  /** Scale the selection about the corner opposite the dragged one, keeping proportions. */
+  /**
+   * Scale the selection by a corner (both ways) or an edge (one way) of its box, about the
+   * opposite corner or edge. Shift keeps its proportions, Alt scales about its middle.
+   */
   private updateScale(it: Extract<Interaction, { kind: 'scale' }>, bp: Point, e: MouseEvent): void {
-    const { box, corner } = it
-    const dirX = corner === 'ne' || corner === 'se' ? 1 : -1
-    const dirY = corner === 'sw' || corner === 'se' ? 1 : -1
-    const anchor = { x: dirX > 0 ? box.x : box.x + box.w, y: dirY > 0 ? box.y : box.y + box.h }
-    const fx = box.w > 0 ? ((bp.x - anchor.x) * dirX) / box.w : 0
-    const fy = box.h > 0 ? ((bp.y - anchor.y) * dirY) / box.h : 0
-    let s = Math.max(fx, fy)
-    // On the grid, the side that follows the pointer lands on a grid line.
-    const mode = this.snapOptions(e).mode
-    if (mode === 'full' || mode === 'grid') {
-      if (fx >= fy && box.w > 0) s = ((snap(anchor.x + dirX * box.w * s) - anchor.x) * dirX) / box.w
-      else if (box.h > 0) s = ((snap(anchor.y + dirY * box.h * s) - anchor.y) * dirY) / box.h
+    const { box, corner: c } = it
+    const dirX = c === 'e' || c === 'ne' || c === 'se' ? 1 : c === 'w' || c === 'nw' || c === 'sw' ? -1 : 0
+    const dirY = c === 's' || c === 'sw' || c === 'se' ? 1 : c === 'n' || c === 'nw' || c === 'ne' ? -1 : 0
+    const fromMiddle = e.altKey
+    const anchor = {
+      x: fromMiddle || !dirX ? box.x + box.w / 2 : dirX > 0 ? box.x : box.x + box.w,
+      y: fromMiddle || !dirY ? box.y + box.h / 2 : dirY > 0 ? box.y : box.y + box.h,
     }
-    s = Math.max(s, minScale(it.originals.values(), MIN_SHAPE_SIZE), 0.05)
+    // On the grid, the dragged side lands on a grid line.
+    const mode = this.snapOptions(e).mode
+    const grid = mode === 'full' || mode === 'grid'
+    const px = grid ? snap(bp.x) : bp.x
+    const py = grid ? snap(bp.y) : bp.y
+    // The dragged side's distance from the anchor, as a share of the box (of half of it from the middle).
+    const span = (size: number) => (fromMiddle ? size / 2 : size)
+    const fx = dirX && box.w > 0 ? ((px - anchor.x) * dirX) / span(box.w) : null
+    const fy = dirY && box.h > 0 ? ((py - anchor.y) * dirY) / span(box.h) : null
+    const min = minScales(it.originals.values(), MIN_SHAPE_SIZE)
+    let sx = fx === null ? 1 : Math.max(fx, min.x, 0.05)
+    let sy = fy === null ? 1 : Math.max(fy, min.y, 0.05)
+    if (e.shiftKey) {
+      // Both ways alike: by the larger stretch at a corner, by the edge's own at an edge.
+      const s = fx !== null && fy !== null ? Math.max(fx, fy) : (fx ?? fy ?? 1)
+      sx = sy = Math.max(s, min.x, min.y, 0.05)
+    }
     const ids = new Set(it.originals.keys())
-    for (const [id, o] of it.originals) this.preview.set(id, scaleObject(o, anchor, s, ids, measureAt))
+    for (const [id, o] of it.originals) this.preview.set(id, scaleObject(o, anchor, sx, sy, ids, measureAt))
     this.guides = []
     this.requestRender()
   }
@@ -2641,29 +2663,39 @@ export class BoardEditor {
     this.requestRender()
   }
 
+  /**
+   * Resize by a corner (both ways) or an edge (one way), about the opposite corner or edge.
+   * Shift keeps the proportions (pictures and icons always do), Alt resizes about the middle.
+   */
   private updateResize(it: Extract<Interaction, { kind: 'resize' }>, bp: Point, e: MouseEvent): void {
     const o = it.original
     const c = it.corner
     // An edge changes one dimension; a corner both.
     const sizesW = c !== 'n' && c !== 's'
     const sizesH = c !== 'e' && c !== 'w'
+    const fromMiddle = e.altKey
+    const keep = o.shape !== 'text' && (e.shiftKey || o.shape === 'image' || o.shape === 'icon')
+    const mid = { x: o.x + o.w / 2, y: o.y + o.h / 2 }
     const fixed: Point = {
-      x: c === 'nw' || c === 'sw' || c === 'w' ? o.x + o.w : o.x,
-      y: c === 'nw' || c === 'ne' || c === 'n' ? o.y + o.h : o.y,
+      x: fromMiddle ? mid.x : c === 'nw' || c === 'sw' || c === 'w' ? o.x + o.w : o.x,
+      y: fromMiddle ? mid.y : c === 'nw' || c === 'ne' || c === 'n' ? o.y + o.h : o.y,
     }
     const snapped = snapPoint(bp, this.snapTargets(new Set([o.id])), this.snapOptions(e))
     const moving = snapped.point
     this.guides = snapped.guides.filter((g) => (g.axis === 'x' ? sizesW : sizesH))
-    let w = sizesW ? Math.max(MIN_SHAPE_SIZE, Math.abs(moving.x - fixed.x)) : o.w
-    let h = sizesH ? Math.max(MIN_SHAPE_SIZE, Math.abs(moving.y - fixed.y)) : o.h
-    if (o.shape === 'image' || o.shape === 'icon') {
-      // Images and icons keep their proportions; the larger relative change wins.
+    const k = fromMiddle ? 2 : 1
+    let w = sizesW ? Math.max(MIN_SHAPE_SIZE, Math.abs(moving.x - fixed.x) * k) : o.w
+    let h = sizesH ? Math.max(MIN_SHAPE_SIZE, Math.abs(moving.y - fixed.y) * k) : o.h
+    if (keep) {
+      // At a corner the larger relative change wins; at an edge the other side follows it.
       const ratio = o.w / o.h
-      if (w / o.w >= h / o.h) h = Math.max(MIN_SHAPE_SIZE, Math.round(w / ratio))
+      if (sizesW && (!sizesH || w / o.w >= h / o.h)) h = Math.max(MIN_SHAPE_SIZE, Math.round(w / ratio))
       else w = Math.max(MIN_SHAPE_SIZE, Math.round(h * ratio))
     }
-    const x = sizesW && moving.x < fixed.x ? fixed.x - w : sizesW ? fixed.x : o.x
-    const y = sizesH && moving.y < fixed.y ? fixed.y - h : sizesH ? fixed.y : o.y
+    // About the middle with Alt; else held at the opposite side. A side that only follows the
+    // other (an edge with Shift) stays centered.
+    const x = Math.round(fromMiddle || (!sizesW && keep) ? mid.x - w / 2 : !sizesW ? o.x : moving.x < fixed.x ? fixed.x - w : fixed.x)
+    const y = Math.round(fromMiddle || (!sizesH && keep) ? mid.y - h / 2 : !sizesH ? o.y : moving.y < fixed.y ? fixed.y - h : fixed.y)
     if (o.shape === 'text') {
       // Text takes the width and wraps in it; its height follows the lines.
       this.preview.set(o.id, autosizeShape({ ...o, x, w, idealW: w, fixedWidth: true }, measureAt))
