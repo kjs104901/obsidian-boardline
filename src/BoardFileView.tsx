@@ -10,7 +10,7 @@ import { boardPicturePath, renderBoardPng, renderCanvasPng } from '@boardline/co
 import type { BoardDocument } from '@boardline/core/board/document'
 import { afterSave, freshClock, saveSnapshot } from '@boardline/core/board/history'
 import { parseLink } from '@boardline/core/board/links'
-import { relinkObjects } from '@boardline/core/board/relink'
+import { relinkAll, type Move } from '@boardline/core/board/relink'
 import { themeMode } from '@boardline/core/theme/palette'
 import { parseBoard, serialize, titleFromFileName } from '@boardline/core/board/serialize'
 import type { EditorStatus } from '@boardline/core/engine/editor'
@@ -105,14 +105,19 @@ export class BoardFileView extends TextFileView {
     this.render()
   }
 
+  /** Whether this board has links that `moves` would change; null when no board is open here. */
+  linksInto(moves: readonly Move[]): boolean | null {
+    return this.doc ? relinkAll(this.doc.ordered(), moves).length > 0 : null
+  }
+
   /**
-   * A file or folder moved from `from` to `to`: this board's links into it follow (one undoable
-   * step, saved as usual). False when no board is open here to take the change.
+   * Files or folders moved: this board's links into them follow (one undoable step, saved as
+   * usual). False when no board is open here to take the change.
    */
-  relink(from: string, to: string): boolean {
+  relink(moves: readonly Move[]): boolean {
     const editor = this.controller.current?.editor
     if (!this.doc || !editor) return false
-    const changed = relinkObjects(this.doc.ordered(), from, to)
+    const changed = relinkAll(this.doc.ordered(), moves)
     if (changed.length) editor.updateObjects(changed, t('undo.relink'))
     return true
   }

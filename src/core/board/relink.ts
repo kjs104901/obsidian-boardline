@@ -71,6 +71,25 @@ export function relinkObjects(objects: BoardObject[], from: string, to: string):
   return changed
 }
 
+/** A file or folder that moved or was renamed. */
+export interface Move {
+  from: string
+  to: string
+}
+
+/** The objects changed by `moves` made one after another (each as it ends up); only changed ones. */
+export function relinkAll(objects: BoardObject[], moves: readonly Move[]): BoardObject[] {
+  const changed = new Map<string, BoardObject>()
+  let current = objects
+  for (const { from, to } of moves) {
+    const step = new Map(relinkObjects(current, from, to).map((o) => [o.id, o]))
+    if (step.size === 0) continue
+    for (const [id, o] of step) changed.set(id, o)
+    current = current.map((o) => step.get(o.id) ?? o)
+  }
+  return [...changed.values()]
+}
+
 /** Whether a board's file text could link into `from` (a quick check before reading it). */
 export function mayLinkTo(boardText: string, from: string): boolean {
   const name = baseName(from)

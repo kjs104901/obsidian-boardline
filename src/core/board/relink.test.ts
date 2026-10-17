@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { docLink } from './links'
 import { createConnector, createMindmapNode, createShape } from './model'
-import { mayLinkTo, relinkObjects } from './relink'
+import { mayLinkTo, relinkAll, relinkObjects } from './relink'
 
 describe('links following a moved file', () => {
   const card = { ...createShape('note', 0, 0, 1), link: docLink('notes/plan.md') }
@@ -30,6 +30,16 @@ describe('links following a moved file', () => {
     expect(changed).toHaveLength(3)
     expect(changed[1]).toMatchObject({ label: '![[idea]]' })
     expect(changed[2]).toMatchObject({ cells: [['[[idea]]', 'x'], ['', '']] })
+  })
+
+  it('follows several moves in a row, each object once as it ends up', () => {
+    const moves = [
+      { from: 'notes', to: 'archive' },
+      { from: 'archive/plan.md', to: 'archive/roadmap.md' },
+    ]
+    const changed = relinkAll([card, picture, other], moves)
+    expect(changed.map((o) => ('link' in o ? o.link : ''))).toEqual([docLink('archive/roadmap.md'), docLink('archive/other.md')])
+    expect(relinkAll([picture], moves)).toEqual([])
   })
 
   it('tells boards that may link to a file from those that cannot', () => {

@@ -109,6 +109,43 @@ export class LinkPicker extends SuggestModal<Item> {
   }
 }
 
+/**
+ * Whether boards' links should follow a moved or renamed file: Obsidian asks the same for notes
+ * when "Automatically update internal links" is off.
+ */
+export function confirmRelink(app: App, boards: number): Promise<boolean> {
+  return new Promise((resolve) => new RelinkPrompt(app, boards, resolve).open())
+}
+
+class RelinkPrompt extends Modal {
+  private update = false
+
+  constructor(
+    app: App,
+    private boards: number,
+    private done: (update: boolean) => void,
+  ) {
+    super(app)
+  }
+
+  onOpen(): void {
+    this.setTitle(t('dialog.relinkTitle'))
+    this.contentEl.createEl('p', { text: t('dialog.relinkAsk') })
+    this.contentEl.createEl('p', { text: t('dialog.relinkBoards', this.boards) })
+    const buttons = this.contentEl.createDiv({ cls: 'modal-button-container' })
+    buttons.createEl('button', { text: t('dialog.relinkUpdate'), cls: 'mod-cta' }).addEventListener('click', () => {
+      this.update = true
+      this.close()
+    })
+    buttons.createEl('button', { text: t('dialog.relinkSkip') }).addEventListener('click', () => this.close())
+  }
+
+  onClose(): void {
+    this.contentEl.empty()
+    this.done(this.update)
+  }
+}
+
 /** A text box in a modal: resolves with the text, or null when closed. */
 export class TextPrompt extends Modal {
   private result: string | null = null

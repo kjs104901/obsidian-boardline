@@ -1,20 +1,33 @@
 // Boardline for Obsidian: whiteboards (.board files) inside the vault, drawn by the board
 // engine (src/core) and the board UI (src/board-ui).
 
-import { Notice, Platform, Plugin, TFile, TFolder, getLanguage, normalizePath } from 'obsidian'
+import { Notice, Platform, Plugin, TFile, TFolder, getLanguage, normalizePath, type App, type Vault } from 'obsidian'
 import { parseLink } from '@boardline/core/board/links'
 import { boardFileName, emptyBoardFile, formatBoardFile, parseBoard, serialize, titleFromFileName } from '@boardline/core/board/serialize'
 import { updateOp } from '@boardline/core/board/document'
-import { mayLinkTo, relinkObjects } from '@boardline/core/board/relink'
+import { mayLinkTo, relinkAll, type Move } from '@boardline/core/board/relink'
 import { followHostLook } from '@boardline/core/theme/follow'
 import type { BoardController } from '@boardline/board-ui/BoardScreen'
 import { BoardFileView, VIEW_TYPE_BOARD } from './BoardFileView'
-import { boardIdOf } from './dialogs'
+import { boardIdOf, confirmRelink } from './dialogs'
 import { clearEmbedCache, registerBoardEmbeds } from './embeds'
 import { BoardlineSettingTab, DEFAULT_SETTINGS, type BoardlineSettings } from './settings'
 import { VaultStorage } from './vaultStorage'
 import { setLanguage, t } from '@boardline/core/i18n'
 import { setPrefsStore } from '@boardline/core/platform/prefs'
+
+/** Moves this close together (ms) are taken as one: a folder, then each file in it. */
+const MOVES_TOGETHER_MS = 100
+
+/**
+ * Obsidian's "Automatically update internal links" (Files and links). The settings API reads it
+ * with vault.getConfig (see SettingTab.getControlValue), which the typings leave out; without it,
+ * ask (Obsidian's default is off).
+ */
+function alwaysUpdateLinks(app: App): boolean {
+  const vault: Vault & { getConfig?: (key: string) => unknown } = app.vault
+  return vault.getConfig?.('alwaysUpdateLinks') === true
+}
 
 export default class BoardlinePlugin extends Plugin {
   settings: BoardlineSettings = { ...DEFAULT_SETTINGS }
@@ -60,26 +73,44 @@ export default class BoardlinePlugin extends Plugin {
     this.registerEvent(this.app.vault.on('rename', (file, oldPath) => this.queueRelink(oldPath, file.path)))
   }
 
-  /** One move at a time, in the order they happened (a folder's files can follow its own event). */
+  /** Moves handled one batch at a time, in the order they happened. */
   private relinking: Promise<void> = Promise.resolve()
+  /** Moves that came in together (a folder's files follow in events of their own), not yet handled. */
+  private moves: Move[] = []
+  private movesTimer: number | null = null
 
   private queueRelink(from: string, to: string): void {
-    this.relinking = this.relinking.then(() => this.relinkBoards(from, to)).catch((e) => console.error('Boardline: updating links after a move', e))
+    this.moves.push({ from, to })
+    if (this.movesTimer !== null) return
+    this.movesTimer = window.setTimeout(() => {
+      this.movesTimer = null
+      const moves = this.moves.splice(0)
+      this.relinking = this.relinking.then(() => this.relinkBoards(moves)).catch((e) => console.error('Boardline: updating links after a move', e))
+    }, MOVES_TOGETHER_MS)
   }
 
-  /** Every board's links into `from` point into `to`: open boards through their editor, others in their file. */
-  private async relinkBoards(from: string, to: string): Promise<void> {
+  /**
+   * Boards' links into what moved follow it: open boards through their editor, others in their
+   * file. As Obsidian does for notes, this happens by itself when "Automatically update internal
+   * links" is on, and after asking when it is off.
+   */
+  private async relinkBoards(moves: Move[]): Promise<void> {
     const open = new Map<string, BoardFileView>()
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_BOARD)) {
       if (leaf.view instanceof BoardFileView && leaf.view.file) open.set(leaf.view.file.path, leaf.view)
     }
-    for (const file of this.app.vault.getFiles()) {
-      if (file.extension !== 'board') continue
-      if (open.get(file.path)?.relink(from, to)) continue
-      if (!mayLinkTo(await this.app.vault.cachedRead(file), from)) continue
+    const boards = this.app.vault.getFiles().filter((file) => file.extension === 'board')
+    if (!alwaysUpdateLinks(this.app)) {
+      let affected = 0
+      for (const file of boards) if (await this.linksInto(file, open.get(file.path), moves)) affected++
+      if (affected === 0 || !(await confirmRelink(this.app, affected))) return
+    }
+    for (const file of boards) {
+      if (open.get(file.path)?.relink(moves)) continue
+      if (!this.mayLinkInto(await this.app.vault.cachedRead(file), moves)) continue
       await this.app.vault.process(file, (data) => {
         const doc = parseBoard(data)
-        const changed = relinkObjects(doc.ordered(), from, to)
+        const changed = relinkAll(doc.ordered(), moves)
         if (changed.length === 0) return data
         doc.commit('', changed.map((o) => updateOp(doc.get(o.id)!, o)))
         doc.meta.rev += 1
@@ -88,7 +119,25 @@ export default class BoardlinePlugin extends Plugin {
     }
   }
 
+  /** Whether a board (open in `view`, or in its file) has links that `moves` change. */
+  private async linksInto(file: TFile, view: BoardFileView | undefined, moves: Move[]): Promise<boolean> {
+    const open = view?.linksInto(moves)
+    if (open !== undefined && open !== null) return open
+    const data = await this.app.vault.cachedRead(file)
+    if (!this.mayLinkInto(data, moves)) return false
+    try {
+      return relinkAll(parseBoard(data).ordered(), moves).length > 0
+    } catch {
+      return false
+    }
+  }
+
+  private mayLinkInto(data: string, moves: Move[]): boolean {
+    return moves.some((m) => mayLinkTo(data, m.from))
+  }
+
   onunload(): void {
+    if (this.movesTimer !== null) window.clearTimeout(this.movesTimer)
     clearEmbedCache()
   }
 
