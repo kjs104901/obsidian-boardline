@@ -14,6 +14,7 @@ src/*.ts(x)     Obsidian 셸: 플러그인, .board 보기, Vault 저장소, 대�
 - **셸은 Obsidian과 닿는 일만 맡는다.** 파일 읽고 쓰기(Vault API), 링크·파일 고르기(`SuggestModal`), 글 입력(`Modal`), 머리글 버튼과 메뉴(`Menu`), 노트 속 임베드, 파일 옮김에 따른 링크 고치기, 테마, 설정.
 - **화면 문구는 `t(키)`로 쓴다.** 문구 표는 `src/core/i18n/`에 있고(영어 `en.ts`가 기준이자 키 목록), 셸이 켜질 때 Obsidian 언어로 `setLanguage()`를 부른다. 모듈을 읽을 때 만들어지는 표(도형 이름, 색 이름, 메뉴 항목)는 `get label() { return t(…) }`처럼 읽을 때 문구를 고른다.
 - **의존 방향은 한쪽이다.** `core` ← `board-ui` ← 셸. `core`는 React·Obsidian을 모르고, `board-ui`는 Obsidian과 셸을 모른다(`scripts/architecture.test.ts`가 검사한다). 두 층은 `@boardline/core/…`, `@boardline/board-ui/…`로 가져온다(esbuild·Vitest·TypeScript에 같은 별칭).
+- **`core`는 DOM 요소를 `@boardline/dom`의 `createElement(doc, tag)`로만 만든다.** 이 모듈은 빌드마다 다르다: 플러그인(esbuild)은 `src/dom.ts`(Obsidian의 `doc.win.createEl`, 팝아웃 창에서도 그 창의 문서에 만든다), 테스트와 스크린샷 페이지(Vite)는 `scripts/dom.ts`(DOM의 `createElement`). 엔진은 Obsidian 없이도 돌고, 배포되는 플러그인은 Obsidian의 도우미를 쓴다(`scripts/architecture.test.ts`가 `core`의 직접 `createElement`를 막는다).
 
 ## 셸이 보드 화면에 주는 것
 

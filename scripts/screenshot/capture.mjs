@@ -40,7 +40,8 @@ const server = await createServer({
   configFile: false,
   logLevel: 'warn',
   plugins: [phosphorIcons()],
-  resolve: { alias: { '@boardline/core': here('../../src/core'), '@boardline/board-ui': here('../../src/board-ui') } },
+  // The engine's DOM elements without Obsidian (scripts/dom.ts), as in the tests.
+  resolve: { alias: { '@boardline/core': here('../../src/core'), '@boardline/board-ui': here('../../src/board-ui'), '@boardline/dom': here('../dom.ts') } },
   server: { port: 0 },
 })
 await server.listen()

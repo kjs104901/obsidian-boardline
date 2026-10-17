@@ -4,6 +4,7 @@ import { centeredText, layoutText, plainLayout, type RichLayout } from './richLa
 import { FONT_FAMILY, fontCss, type Measure, type MeasureAt } from './text'
 import { autosizeTable } from './table'
 import { autosizeLink, linkDrawing } from './linkObject'
+import { createElement } from '@boardline/dom'
 
 export { FONT_FAMILY, fontCss, wrapText, type Measure, type MeasureAt } from './text'
 
@@ -227,7 +228,7 @@ export const measureAt: MeasureAt = (size, style = '') => {
 
 /** Canvas-backed measurer with a small cache. */
 export function createCanvasMeasure(font = shapeFont()): Measure {
-  const ctx = document.createElement('canvas').getContext('2d')
+  const ctx = createElement(document, 'canvas').getContext('2d')
   if (!ctx) throw new Error('Canvas 2D is not available')
   ctx.font = font
   const cache = new Map<string, number>()

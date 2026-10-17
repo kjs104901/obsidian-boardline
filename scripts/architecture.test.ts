@@ -38,4 +38,9 @@ describe('layer boundaries', () => {
   it('board-ui imports no Obsidian and nothing of the plugin', () => {
     expect(violations('board-ui', /^obsidian(\/|$)/)).toEqual([])
   })
+
+  it('core makes DOM elements only through @boardline/dom (Obsidian helpers in the plugin)', () => {
+    const direct = sources(path.join(ROOT, 'src', 'core')).filter((f) => /\.createElement(NS)?\(/.test(fs.readFileSync(f, 'utf8')))
+    expect(direct.map((f) => path.relative(ROOT, f))).toEqual([])
+  })
 })

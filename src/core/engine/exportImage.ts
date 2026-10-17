@@ -23,6 +23,7 @@ import { richSvg } from './richLayout'
 import { NOTE_FADE, NOTE_PADDING, noteDrawing, type NoteView } from './noteCard'
 import { fontCss } from './text'
 import { t } from '../i18n'
+import { createElement } from '@boardline/dom'
 
 export interface ExportScene {
   /** Objects to draw, in z order. */
@@ -62,7 +63,7 @@ export async function exportPng(
 ): Promise<Uint8Array> {
   const area = paddedBounds(scene.bounds)
   const fit = Math.min(scale, MAX_CANVAS_SIDE / area.w, MAX_CANVAS_SIDE / area.h, Math.sqrt(MAX_CANVAS_AREA / (area.w * area.h)))
-  const canvas = document.createElement('canvas')
+  const canvas = createElement(document, 'canvas')
   const renderer = new Renderer(canvas, measureAt)
   renderer.resize(area.w, area.h, fit)
   const vp = new Viewport()

@@ -104,6 +104,7 @@ import {
   type Cell,
   type CellRange,
 } from './table'
+import { createElement } from '@boardline/dom'
 import { MIN_STEM, actorBounds, actorSlot, isActor, lifeline, lifelineAt, messageDy, neighbourActor } from './sequence'
 import { exportPng, exportSvg, type ExportScene, type PngOptions } from './exportImage'
 import { labelBoxOf, previewSvg, sceneOf, standaloneScene } from './scene'
@@ -481,10 +482,10 @@ export class BoardEditor {
   ) {
     // Keys and clipboard come from the window the board is in (Obsidian can pop boards out).
     const win = host.ownerDocument.defaultView ?? window
-    this.canvas = host.ownerDocument.createElement('canvas')
+    this.canvas = createElement(host.ownerDocument, 'canvas')
     this.canvas.className = 'bl-board-canvas'
     this.canvas.tabIndex = 0
-    this.overlay = host.ownerDocument.createElement('div')
+    this.overlay = createElement(host.ownerDocument, 'div')
     this.overlay.className = 'bl-board-overlay'
     host.append(this.canvas, this.overlay)
     this.measureLabel = createCanvasMeasure(labelFont())
@@ -1015,7 +1016,7 @@ export class BoardEditor {
 
   /** I: pick image files to place in the middle of the view. */
   importImages(): void {
-    const input = this.host.ownerDocument.createElement('input')
+    const input = createElement(this.host.ownerDocument, 'input')
     input.type = 'file'
     input.accept = 'image/*'
     input.multiple = true
@@ -4176,7 +4177,7 @@ export class BoardEditor {
     // Shapes with Markdown text, mind map nodes and line labels are typed with their marks
     // (nodes and labels without lists; a node's Enter adds the next node).
     const rich = hasTextStyle(o) || isMindmap(o) || isConnector(o)
-    const field = rich ? new RichField(doc, { lists: hasTextStyle(o), enter: !isMindmap(o) }) : doc.createElement('textarea')
+    const field = rich ? new RichField(doc, { lists: hasTextStyle(o), enter: !isMindmap(o) }) : createElement(doc, 'textarea')
     const ta: HTMLElement = field instanceof RichField ? field.el : field
     ta.className = 'bl-board-text-editor'
     ta.spellcheck = false
@@ -4705,7 +4706,7 @@ function rectContainsPoint(r: Rect, p: Point): boolean {
 let sharedHitContext: CanvasRenderingContext2D | null = null
 function hitContext(): CanvasRenderingContext2D {
   if (!sharedHitContext) {
-    const ctx = document.createElement('canvas').getContext('2d')
+    const ctx = createElement(document, 'canvas').getContext('2d')
     if (!ctx) throw new Error('Canvas 2D is not available')
     sharedHitContext = ctx
   }

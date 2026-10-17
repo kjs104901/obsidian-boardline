@@ -11,6 +11,8 @@ export default defineConfig({
     alias: {
       '@boardline/core': here('src/core'),
       '@boardline/board-ui': here('src/board-ui'),
+      // The engine's DOM elements without Obsidian (the plugin build uses src/dom.ts).
+      '@boardline/dom': here('scripts/dom.ts'),
     },
   },
   test: {

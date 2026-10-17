@@ -25,6 +25,9 @@
       ],
       "@boardline/board-ui/*": [
         "./src/board-ui/*"
+      ],
+      "@boardline/dom": [
+        "./src/dom.ts"
       ]
     }
   },

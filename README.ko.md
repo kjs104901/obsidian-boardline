@@ -51,6 +51,7 @@ src/
   main.ts          플러그인: 보기·명령·리본 등록, 파일 옮김에 따른 링크 고치기, 테마
   BoardFileView.tsx  .board 보기(TextFileView): 불러오기·저장, 버전 기록, 머리글 버튼과 메뉴
   vaultStorage.ts  Vault API로 만든 저장소
+  dom.ts           엔진의 DOM 요소를 Obsidian의 createEl로(빌드가 @boardline/dom으로 넘김)
   dialogs.ts       링크·파일 고르기(SuggestModal), 글 입력(Modal)
   embeds.ts        노트 속 ![[x.board]] 그림
   linkFetcher.ts   웹 링크 미리보기(requestUrl)
@@ -62,6 +63,7 @@ scripts/
   gen-big-board.ts   성능 확인용 큰 보드 만들기
   app-cdp.mjs, cdp-profile.mjs  CDP로 Obsidian을 조작·프로파일
   version-bump.mjs   npm version이 manifest.json·versions.json 버전을 맞춤
+  dom.ts             테스트·스크린샷용 @boardline/dom(DOM의 createElement)
   screenshot/        README 스크린샷: 데모 보드를 Vite로 띄워 헤드리스 Edge·Chrome으로 찍음
 .github/workflows/  ci.yml(푸시·PR마다 검사), release.yml(태그를 밀면 초안 릴리스)
 esbuild.config.mjs  플러그인 빌드 (저장소 최상위에 main.js, styles.css)

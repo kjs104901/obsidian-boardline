@@ -86,14 +86,13 @@
 | 번들(`main.js`)에 원격 코드 불러오기로 보일 것 없음 | ✅ React 19의 react-dom은 쓰지 않는 리소스 미리 불러오기 기능에 `createElement("script")`가 있어 18.3으로 내렸다(보드 UI는 두 버전에 다 있는 것만 쓴다). `eval`·`new Function`·`fetch`·`XMLHttpRequest`도 없다. 남은 `innerHTML`은 react-dom의 `dangerouslySetInnerHTML` 처리, `new Worker`는 elkjs의 워커 주소 경로로, 둘 다 Boardline이 쓰지 않는다 |
 | 라이트·다크 전환 | ✅ `core/theme/follow.ts`: Obsidian의 `css-change`가 body 클래스보다 먼저 올 수 있어 다음 프레임에 읽고, 클래스만 바꾸는 테마·플러그인(Minimal 설정 등)도 따라간다. 노트 속 보드 그림은 보드 색이 바뀐 뒤 다시 그린다 |
 
-**남긴 lint 경고(29개)와 이유** — 커뮤니티 디렉터리 검사에서도 같은 항목이 Warning·Recommendation으로 나오며, 통과를 막지 않는다.
+**남긴 lint 경고(10개)와 이유** — 커뮤니티 디렉터리 검사에서도 같은 항목이 Warning·Recommendation으로 나오며, 통과를 막지 않는다.
 
 | 규칙 | 개수 | 이유 |
 |---|---|---|
-| `obsidianmd/prefer-create-el` | 19 | 모두 `src/core`(보드 엔진). 엔진은 Obsidian을 모르게 두어 Vitest와 스크린샷 페이지(브라우저)에서도 돌기 때문에 Obsidian 전역의 `createEl` 대신 DOM의 `createElement`를 쓴다. 보드에 붙는 요소는 보드가 있는 창의 문서(`ownerDocument`)로 만들어 팝아웃 창에서도 맞고, 나머지는 글자 재기·내보내기용 화면 밖 캔버스다. 셸(`src/*.ts`)에는 없다 |
 | `@typescript-eslint/no-deprecated` | 10 | `document.execCommand` 9개(편집 상자의 굵게·실행 취소·붙여넣기, 복사)와 `queryCommandState` 1개. contenteditable에서 실행 취소 기록을 지키는 서식 명령은 브라우저가 대신할 API를 아직 주지 않는다 |
 
-해결한 것: 설정 탭은 1.13+에서 `getSettingDefinitions()`로 그려져 Obsidian 설정 검색에 나온다(이전 버전은 `display()`, 다시 그리지 않고 폴더 칸만 보이고 숨김). CSS의 `!important` 두 개는 선택자 우선순위로 바꿨다(보기 여백은 Obsidian 캔버스처럼 `[data-type]`으로).
+해결한 것: 엔진(`src/core`)의 `createElement` 19곳은 `@boardline/dom`을 거쳐 플러그인 빌드에서 Obsidian의 `createEl`(`doc.win.createEl`)로 만든다(테스트·스크린샷은 `scripts/dom.ts`). 설정 탭은 1.13+에서 `getSettingDefinitions()`로 그려져 Obsidian 설정 검색에 나온다(이전 버전은 `display()`, 다시 그리지 않고 폴더 칸만 보이고 숨김). CSS의 `!important` 두 개는 선택자 우선순위로 바꿨다(보기 여백은 Obsidian 캔버스처럼 `[data-type]`으로).
 
 ---
 

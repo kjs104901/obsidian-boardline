@@ -5,6 +5,7 @@
 import type { StoredImage } from './assets'
 import { hostOf } from './links'
 import type { ShapeObject } from './model'
+import { createElement } from '@boardline/dom'
 
 export type LinkFields = Pick<ShapeObject, 'link' | 'text' | 'src' | 'preview'>
 
@@ -35,7 +36,7 @@ async function toPng(blob: Blob, max: number): Promise<Blob | null> {
   try {
     const bitmap = await createImageBitmap(blob)
     const k = Math.min(1, max / bitmap.width)
-    const canvas = document.createElement('canvas')
+    const canvas = createElement(document, 'canvas')
     canvas.width = Math.max(1, Math.round(bitmap.width * k))
     canvas.height = Math.max(1, Math.round(bitmap.height * k))
     canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)

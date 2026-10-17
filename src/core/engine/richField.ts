@@ -4,12 +4,13 @@
 
 import { codeLines, lineStart, parseInline, serializeInline, type MarkName, type Marks, type Run } from './richText'
 import { nextListItem } from './text'
+import { createElement } from '@boardline/dom'
 
 /** One styled run as nodes: its text inside a tag per mark. */
 function runNode(doc: Document, r: Run): Node {
   let node: Node = doc.createTextNode(r.text)
-  const wrap = (tag: string) => {
-    const el = doc.createElement(tag)
+  const wrap = (tag: MarkTag) => {
+    const el = createElement(doc, tag)
     el.append(node)
     node = el
   }
@@ -19,7 +20,7 @@ function runNode(doc: Document, r: Run): Node {
   if (r.italic) wrap('i')
   if (r.bold) wrap('b')
   if (r.link) {
-    const a = doc.createElement('a')
+    const a = createElement(doc, 'a')
     a.dataset.href = r.link
     a.append(node)
     node = a
@@ -32,7 +33,7 @@ export function markdownToNodes(doc: Document, md: string): Node[] {
   if (!md) return []
   const nodes: Node[] = []
   codeLines(md).forEach(({ line, code }, i) => {
-    if (i > 0) nodes.push(doc.createElement('br'))
+    if (i > 0) nodes.push(createElement(doc, 'br'))
     if (code) {
       if (line) nodes.push(doc.createTextNode(line))
       return
@@ -42,7 +43,7 @@ export function markdownToNodes(doc: Document, md: string): Node[] {
     for (const r of parseInline(s.rest)) nodes.push(runNode(doc, r))
   })
   // An empty last line shows only with a <br> of its own.
-  if (md.endsWith('\n')) nodes.push(doc.createElement('br'))
+  if (md.endsWith('\n')) nodes.push(createElement(doc, 'br'))
   return nodes
 }
 
@@ -150,7 +151,10 @@ export function htmlToMarkdown(root: Node): string {
  * entry lists characters that can't come just before the match (no lookbehind: older iOS
  * can't read one).
  */
-const TYPED_MARKS: [RegExp, string, string?][] = [
+/** Tags the field marks text with (as the board draws it). */
+type MarkTag = 'b' | 'i' | 's' | 'mark' | 'code'
+
+const TYPED_MARKS: [RegExp, MarkTag, string?][] = [
   [/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*$/, 'b'],
   [/\*([^*\s](?:[^*]*[^*\s])?)\*$/, 'i', '*\\'],
   [/~~([^~\s](?:[^~]*[^~\s])?)~~$/, 's'],
@@ -158,7 +162,7 @@ const TYPED_MARKS: [RegExp, string, string?][] = [
   [/`([^`]+)`$/, 'code'],
 ]
 
-const TAG_OF: Record<'highlight' | 'code', string> = { highlight: 'MARK', code: 'CODE' }
+const TAG_OF: Record<'highlight' | 'code', MarkTag> = { highlight: 'mark', code: 'code' }
 
 export interface RichFieldOptions {
   /** Enter in a list item starts the next one (default on; off where text has no lists). */
@@ -175,7 +179,7 @@ export class RichField {
     private doc: Document,
     private opts: RichFieldOptions = {},
   ) {
-    const el = doc.createElement('div')
+    const el = createElement(doc, 'div')
     el.contentEditable = 'true'
     el.spellcheck = false
     el.setAttribute('role', 'textbox')
@@ -188,7 +192,7 @@ export class RichField {
       e.preventDefault()
       const text = (e.clipboardData?.getData('text/plain') ?? '').replace(/\r\n?/g, '\n')
       if (!text) return
-      const box = doc.createElement('div')
+      const box = createElement(doc, 'div')
       box.append(...markdownToNodes(doc, text))
       doc.execCommand('insertHTML', false, box.innerHTML)
     })
@@ -265,13 +269,13 @@ export class RichField {
         return false
       }
     }
-    return { bold: q('bold'), italic: q('italic'), strike: q('strikeThrough'), highlight: !!this.around('MARK'), code: !!this.around('CODE') }
+    return { bold: q('bold'), italic: q('italic'), strike: q('strikeThrough'), highlight: !!this.around('mark'), code: !!this.around('code') }
   }
 
-  private around(tag: string): HTMLElement | null {
+  private around(tag: MarkTag): HTMLElement | null {
     const node = this.doc.getSelection()?.anchorNode ?? null
     for (let e = node instanceof HTMLElement ? node : (node?.parentElement ?? null); e && e !== this.el; e = e.parentElement) {
-      if (e.tagName === tag) return e
+      if (e.localName === tag) return e
     }
     return null
   }
@@ -281,7 +285,7 @@ export class RichField {
   }
 
   /** Highlight and code have no editing command: wrap the selection, or unwrap around the caret. */
-  private toggleTag(tag: string): void {
+  private toggleTag(tag: MarkTag): void {
     const sel = this.doc.getSelection()
     if (!sel || sel.rangeCount === 0) return
     const found = this.around(tag)
@@ -292,7 +296,7 @@ export class RichField {
     }
     const range = sel.getRangeAt(0)
     if (range.collapsed || !this.el.contains(range.commonAncestorContainer)) return
-    const wrap = this.doc.createElement(tag.toLowerCase())
+    const wrap = createElement(this.doc, tag)
     wrap.append(range.extractContents())
     range.insertNode(wrap)
     sel.selectAllChildren(wrap)
@@ -306,7 +310,7 @@ export class RichField {
     const r = this.doc.createRange()
     r.setStart(this.el, 0)
     r.setEnd(sel.anchorNode, sel.anchorOffset)
-    const box = this.doc.createElement('div')
+    const box = createElement(this.doc, 'div')
     box.append(r.cloneContents())
     const lines = domLines(box, true)
     return lines[lines.length - 1].map((run) => run.text).join('')
@@ -342,7 +346,7 @@ export class RichField {
       range.setStart(node, sel.anchorOffset - m[0].length)
       range.setEnd(node, sel.anchorOffset)
       range.deleteContents()
-      const el = this.doc.createElement(tag)
+      const el = createElement(this.doc, tag)
       el.textContent = m[1]
       range.insertNode(el)
       // Typing goes on after the mark, not inside it.

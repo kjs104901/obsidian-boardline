@@ -42,6 +42,7 @@ import { LINK_GLYPHS, glyphColors, linkBadge, linkDrawing } from './linkObject'
 import type { Guide } from './snapping'
 import { LABEL_FONT_SIZE, LABEL_PADDING, FONT_FAMILY, labelLayout, layoutShapeText, type MeasureAt } from './textLayout'
 import type { Viewport } from './viewport'
+import { createElement } from '@boardline/dom'
 
 export const HANDLE_SIZE = 8
 /** Connection dot radius (screen px) and the larger radius when hovered. */
@@ -532,7 +533,7 @@ export class Renderer {
     const color = theme.gridDot
     const key = Math.round(spacing * 100) / 100
     if (this.gridTile?.spacing === key && this.gridTile.color === color) return this.gridTile.pattern
-    const tile = this.canvas.ownerDocument.createElement('canvas')
+    const tile = createElement(this.canvas.ownerDocument, 'canvas')
     tile.width = GRID_TILE
     tile.height = GRID_TILE
     const tc = tile.getContext('2d')

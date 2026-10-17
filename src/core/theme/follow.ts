@@ -5,6 +5,7 @@
 import { DEFAULT_FONT_FAMILY, setFontFamily } from '../engine/text'
 import { FONT_EVENT, THEME_EVENT } from './events'
 import { setHostColors, setThemeMode, type HostColors } from './palette'
+import { createElement } from '@boardline/dom'
 
 export interface HostLook {
   /** Read the look again once the page has settled (the host says its CSS changed). */
@@ -30,7 +31,7 @@ export function followHostLook(doc: Document): HostLook {
     // The variables may be calc() or color-mix() expressions a canvas can't read: a new element
     // colored with each turns it into a plain color (new, so no transition is under way on it).
     const resolve = (name: string) => {
-      const probe = body.appendChild(doc.createElement('div'))
+      const probe = body.appendChild(createElement(doc, 'div'))
       probe.style.color = `var(${name})`
       const color = win.getComputedStyle(probe).color || null
       probe.remove()

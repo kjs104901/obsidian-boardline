@@ -96,6 +96,8 @@ const ctx = await esbuild.context({
   alias: {
     '@boardline/core': here('src/core'),
     '@boardline/board-ui': here('src/board-ui'),
+    // The engine's DOM elements, with Obsidian's helpers (tests and screenshots use scripts/dom.ts).
+    '@boardline/dom': here('src/dom.ts'),
   },
   define: { 'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development'), __THIRD_PARTY_NOTICES__: JSON.stringify(NOTICES) },
   banner: { js: `/*!\n${NOTICES}\n*/` },
