@@ -39,6 +39,14 @@ describe('layer boundaries', () => {
     expect(violations('board-ui', /^obsidian(\/|$)/)).toEqual([])
   })
 
+  it('nothing puts HTML into the page as a string', () => {
+    // React's own innerHTML path (dangerouslySetInnerHTML) and the DOM's are never used, so the
+    // innerHTML code inside react-dom never runs. Reading innerHTML (of our own nodes) is fine.
+    const html = /dangerouslySetInnerHTML|\.(innerHTML|outerHTML)\s*=[^=]|insertAdjacentHTML|document\.write/
+    const found = sources(path.join(ROOT, 'src')).filter((f) => html.test(fs.readFileSync(f, 'utf8')))
+    expect(found.map((f) => path.relative(ROOT, f))).toEqual([])
+  })
+
   it('core makes DOM elements only through @boardline/dom (Obsidian helpers in the plugin)', () => {
     const direct = sources(path.join(ROOT, 'src', 'core')).filter((f) => /\.createElement(NS)?\(/.test(fs.readFileSync(f, 'utf8')))
     expect(direct.map((f) => path.relative(ROOT, f))).toEqual([])
