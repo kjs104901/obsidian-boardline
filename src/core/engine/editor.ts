@@ -282,7 +282,8 @@ type Interaction =
   /** Several objects scaled together by a corner of their box. */
   | { kind: 'scale'; corner: ResizeHandle; box: Rect; originals: Map<string, BoardObject>; downScreen: Point; dragging: boolean }
   | { kind: 'marquee'; downBoard: Point; current: Point; base: Set<string> }
-  | { kind: 'create'; shape: ShapeKind; downScreen: Point; downBoard: Point; current: Point; dragging: boolean }
+  /** A press with the shape tool: a click adds `placed` (the preview it was over), a drag sizes the shape. */
+  | { kind: 'create'; shape: ShapeKind; downScreen: Point; downBoard: Point; current: Point; dragging: boolean; placed: ShapeObject }
   /** Mind map tool: the root is placed on release, so the click can't steal the editor's focus. */
   | { kind: 'place'; at: Point }
   /** New connector: from a connection dot (side set) or with the connector tool (from a shape or a point). */
@@ -504,7 +505,11 @@ export class BoardEditor {
       this.endTouch(e as PointerEvent)
       this.cancelInteraction()
     })
-    this.listen(this.canvas, 'pointerleave', () => this.setHoverDot(null))
+    this.listen(this.canvas, 'pointerleave', () => {
+      this.setHoverDot(null)
+      this.hovering = null
+      this.refreshPlacing()
+    })
     this.listen(this.canvas, 'dblclick', (e) => this.onDoubleClick(e as MouseEvent))
     this.listen(this.canvas, 'contextmenu', (e) => this.onContextMenu(e as MouseEvent))
     this.listen(this.canvas, 'wheel', (e) => this.onWheel(e as WheelEvent), { passive: false })
@@ -563,6 +568,7 @@ export class BoardEditor {
       this.requestRender()
     }
     this.setCursor(this.toolCursor())
+    this.refreshPlacing()
     this.emitStatus()
   }
 
@@ -1272,7 +1278,7 @@ export class BoardEditor {
     let lookup = this.lookup
     let targetId: string | null = null
 
-    if (it.kind === 'create' && it.dragging) ghost = { shape: it.shape, rect: this.creationRect(it) }
+    const placing = it.kind === 'create' ? this.createdShape(it) : it.kind === 'idle' ? this.placing : null
     if (it.kind === 'endpoint' && it.dragging) targetId = it.targetId
     if (it.kind === 'connect' && it.dragging) {
       targetId = it.targetId
@@ -1361,6 +1367,7 @@ export class BoardEditor {
       marquee: it.kind === 'marquee' ? rectFromPoints(it.downBoard, it.current) : null,
       lasso,
       ghost,
+      placing,
       showHandles: it.kind !== 'move' && it.kind !== 'connect' && !this.editing && !this.cropping,
       groupBox: it.kind === 'idle' || it.kind === 'scale' || it.kind === 'press' ? this.groupBox() : null,
       crop: this.cropping,
@@ -1833,7 +1840,9 @@ export class BoardEditor {
       return
     }
     if (this.tool.kind === 'shape') {
-      this.interaction = { kind: 'create', shape: this.tool.shape, downScreen: sp, downBoard: bp, current: bp, dragging: false }
+      const placed = this.placement(this.tool, bp, e)
+      this.guides = placed.guides
+      this.interaction = { kind: 'create', shape: this.tool.shape, downScreen: sp, downBoard: bp, current: bp, dragging: false, placed: placed.shape }
       return
     }
     if (this.tool.kind === 'mindmap') {
@@ -1965,6 +1974,9 @@ export class BoardEditor {
     const it = this.interaction
     switch (it.kind) {
       case 'idle':
+        // A finger has nothing to hover with: no preview under it.
+        this.hovering = e.pointerType === 'touch' ? null : { sp, e }
+        this.refreshPlacing()
         this.updateHover(bp)
         return
       case 'place':
@@ -2024,7 +2036,10 @@ export class BoardEditor {
         return
       case 'create':
         it.current = bp
-        if (distance(sp, it.downScreen) >= DRAG_THRESHOLD) it.dragging = true
+        if (distance(sp, it.downScreen) >= DRAG_THRESHOLD) {
+          it.dragging = true
+          this.guides = []
+        }
         this.requestRender()
         return
       case 'addActor':
@@ -2630,6 +2645,11 @@ export class BoardEditor {
     return { mode, grid: GRID, distance: Math.max(12 / this.viewport.zoom, GRID / 2) }
   }
 
+  /** The pointer over the board while nothing is pressed (and the event, for the keys held); null once it leaves. */
+  private hovering: { sp: Point; e: MouseEvent } | null = null
+  /** The shape tool's preview under the pointer. */
+  private placing: ShapeObject | null = null
+
   /** Visible shapes that can act as snap targets, excluding the ones being edited. */
   private snapTargets(exclude: ReadonlySet<string> | Map<string, unknown>): Rect[] {
     const view = this.viewport.visibleRect()
@@ -2818,7 +2838,48 @@ export class BoardEditor {
 
   // ---- creation -----------------------------------------------------------
 
-  /** Click: default size at the snapped click point. Drag: snapped start and size. */
+  /**
+   * The shape a click with the shape tool adds at `bp`, in its default size and look: its top-left
+   * corner at the pointer (text: the middle of its first line), snapped as a moved shape is.
+   */
+  private placement(tool: Extract<Tool, { kind: 'shape' }>, bp: Point, e: MouseEvent): { shape: ShapeObject; guides: Guide[] } {
+    const shape = this.toolShape(tool, 0, 0, 0)
+    const at = shape.shape === 'text' ? { x: bp.x, y: bp.y - SHAPE_LINE_HEIGHT / 2 } : bp
+    const { rect, guides } = snapMove({ ...at, w: shape.w, h: shape.h }, this.snapTargets(new Set()), this.snapOptions(e))
+    return { shape: { ...shape, x: rect.x, y: rect.y }, guides }
+  }
+
+  /** The shape tool's preview follows the pointer over the board while nothing is pressed. */
+  private refreshPlacing(): void {
+    const h = this.hovering
+    const tool = this.tool
+    const next = h && tool.kind === 'shape' && !this.readOnly && this.interaction.kind === 'idle' ? this.placement(tool, this.viewport.toBoard(h.sp.x, h.sp.y), h.e) : null
+    if (!next && !this.placing) return
+    this.placing = next?.shape ?? null
+    this.guides = next?.guides ?? []
+    this.requestRender()
+  }
+
+  /** A new shape of the shape tool's kind (an icon with its picture), in the default look. */
+  private toolShape(tool: Extract<Tool, { kind: 'shape' }>, x: number, y: number, z: number, size?: { w: number; h: number }): ShapeObject {
+    let shape = createShape(tool.shape, x, y, z, size)
+    if (shape.shape === 'icon') {
+      shape = { ...shape, icon: tool.icon ?? 'star' }
+      if (tool.iconStyle && tool.iconStyle !== 'color') shape.iconStyle = tool.iconStyle
+    }
+    return withDefaultStyle(shape)
+  }
+
+  /** What a press with the shape tool adds: the shape dragged out (most kinds; an icon square), or the one it was clicked on. */
+  private createdShape(it: Extract<Interaction, { kind: 'create' }>): ShapeObject {
+    if (!it.dragging || it.shape === 'text' || it.shape === 'actor' || it.shape === 'table') return it.placed
+    const r = this.creationRect(it)
+    const side = Math.max(r.w, r.h)
+    const tool = this.tool.kind === 'shape' ? this.tool : { kind: 'shape' as const, shape: it.shape }
+    return this.toolShape(tool, r.x, r.y, 0, it.shape === 'icon' ? { w: side, h: side } : { w: r.w, h: r.h })
+  }
+
+  /** A shape dragged out: snapped start and size. */
   private creationRect(it: Extract<Interaction, { kind: 'create' }>): Rect {
     const start = { x: this.gridSnap(it.downBoard.x), y: this.gridSnap(it.downBoard.y) }
     const end = { x: this.gridSnap(it.current.x), y: this.gridSnap(it.current.y) }
@@ -2827,27 +2888,7 @@ export class BoardEditor {
   }
 
   private finishCreate(it: Extract<Interaction, { kind: 'create' }>): void {
-    const z = this.doc.maxZ() + 1
-    let shape: ShapeObject
-    if (it.shape === 'text') {
-      // The click marks the middle of the first line.
-      shape = createShape('text', snap(it.downBoard.x), snap(it.downBoard.y) - SHAPE_LINE_HEIGHT / 2, z)
-    } else if (it.shape === 'icon') {
-      // A clicked icon is centered on the click; a dragged one is square.
-      const tool = this.tool.kind === 'shape' ? this.tool : null
-      const r = it.dragging ? this.creationRect(it) : null
-      const size = r ? Math.max(r.w, r.h) : SHAPE_SPECS.icon.w
-      const x = r ? r.x : snap(it.downBoard.x - size / 2)
-      const y = r ? r.y : snap(it.downBoard.y - size / 2)
-      shape = { ...createShape('icon', x, y, z, { w: size, h: size }), icon: tool?.icon ?? 'star' }
-      if (tool?.iconStyle && tool.iconStyle !== 'color') shape.iconStyle = tool.iconStyle
-    } else if (it.dragging && it.shape !== 'actor' && it.shape !== 'table') {
-      const r = this.creationRect(it)
-      shape = createShape(it.shape, r.x, r.y, z, { w: r.w, h: r.h })
-    } else {
-      shape = createShape(it.shape, snap(it.downBoard.x), snap(it.downBoard.y), z)
-    }
-    shape = withDefaultStyle(shape)
+    let shape: ShapeObject = { ...this.createdShape(it), z: this.doc.maxZ() + 1 }
     // Sections sit behind everything.
     if (isContainer(shape)) shape = { ...shape, z: Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1 }
     this.commit(t('undo.addShape'), [createOp(shape)])

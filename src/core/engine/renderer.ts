@@ -73,6 +73,8 @@ export interface RenderState {
   editingId: string | null
   marquee: Rect | null
   ghost: { shape: ShapeKind; rect: Rect } | null
+  /** The shape a creation tool would add (under the pointer, or being dragged out): see-through, with its size. */
+  placing?: ShapeObject | null
   showHandles: boolean
   /** Several selected objects scaled together: their box, with corner handles. */
   groupBox?: Rect | null
@@ -188,6 +190,7 @@ export class Renderer {
       ctx.fill('evenodd')
       ctx.restore()
     }
+    if (s.placing) this.drawPlacing(vp, s.placing)
     if (s.previewConnector) this.drawConnector(s.previewConnector, s.lookup, false, null, 0.75)
     if (s.ghost) this.drawGhost(vp, s.ghost.shape, s.ghost.rect)
     if (s.targetId) {
@@ -1097,6 +1100,23 @@ export class Renderer {
       }
     }
     ctx.stroke()
+    ctx.restore()
+  }
+
+  /** A shape about to be added, as it will look but see-through, its size under its bottom-right corner (not for text). */
+  private drawPlacing(vp: Viewport, o: ShapeObject): void {
+    const { ctx } = this
+    ctx.save()
+    ctx.globalAlpha = 0.5
+    this.drawShape(o, true)
+    ctx.restore()
+    if (o.shape === 'text') return
+    ctx.save()
+    ctx.font = fontOf(11 / vp.zoom, true)
+    ctx.fillStyle = theme.selection
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'top'
+    ctx.fillText(`${Math.round(o.w)} x ${Math.round(o.h)}`, o.x + o.w, o.y + o.h + 6 / vp.zoom)
     ctx.restore()
   }
 
