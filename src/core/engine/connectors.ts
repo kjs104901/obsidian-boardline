@@ -184,7 +184,7 @@ export function simplify(points: Point[]): Point[] {
 /** A route before dragged segments are applied. */
 interface Route {
   points: Point[]
-  /** Elbow routes take dragged segments; straight lines and self messages don't. */
+  /** Elbow routes take dragged segments; straight lines and messages don't (a message slides along its lifelines). */
   pinnable: boolean
   startAttached: boolean
   endAttached: boolean
@@ -206,7 +206,7 @@ function autoRoute(c: ConnectorObject, lookup: Lookup): Route | null {
   const fromAim = to.rect && !to.dir ? center(to.rect) : to.point
   if (c.kind === 'straight') return fixed(straightLine(from, to))
   if (c.kind === 'curved') return fixed(curvedLine(from, to))
-  const attached = { pinnable: true, startAttached: !!from.rect, endAttached: !!to.rect }
+  const attached = { pinnable: !isMessage(c), startAttached: !!from.rect, endAttached: !!to.rect }
 
   // Both ends pinned to sides: go round the shapes (they keep their sides when moved).
   if (from.dir && to.dir && from.rect && to.rect) {

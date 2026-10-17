@@ -2448,13 +2448,6 @@ export class BoardEditor {
         } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o)
       }
       for (const [id, o] of originals) if (o.locked) originals.delete(id)
-      if (originals.size === 0) {
-        // Only locked objects under the pointer: drag a selection box instead.
-        const base = it.shift ? new Set(this.selection) : new Set<string>()
-        this.interaction = { kind: 'marquee', downBoard: it.downBoard, current: it.downBoard, base }
-        this.emitStatus()
-        return
-      }
       // A section carries everything that lies inside it (a copied one brought copies of it).
       for (const o of copies ? [] : [...originals.values()]) {
         if (!isShape(o) || !isContainer(o)) continue
@@ -2482,11 +2475,18 @@ export class BoardEditor {
       const slide = new Set<string>()
       for (const id of this.selection) {
         const o = this.doc.get(id)
-        if (!isConnector(o) || !('objectId' in o.from) || !('objectId' in o.to)) continue
+        if (!isConnector(o) || o.locked || !('objectId' in o.from) || !('objectId' in o.to)) continue
         if (o.from.dy === undefined || o.to.dy === undefined) continue
         if (originals.has(o.from.objectId) || originals.has(o.to.objectId)) continue
         originals.set(o.id, o)
         slide.add(o.id)
+      }
+      if (originals.size === 0) {
+        // Only locked objects (or lines fixed at both ends) under the pointer: drag a selection box instead.
+        const base = it.shift ? new Set(this.selection) : new Set<string>()
+        this.interaction = { kind: 'marquee', downBoard: it.downBoard, current: it.downBoard, base }
+        this.emitStatus()
+        return
       }
       this.interaction = { kind: 'move', downBoard: it.downBoard, originals, bbox: unionRects(rects as Rect[]), rigid, slide, copies }
     } else if (it.alt) {
@@ -2526,14 +2526,15 @@ export class BoardEditor {
     })
   }
 
-  /** Move a message up or down its lifelines by `dy`, staying on them. */
+  /** Move a message up or down its lifelines by `dy`, staying on them (and straight: dragged segments from before go). */
   private slideMessage(c: ConnectorObject, dy: number): ConnectorObject {
     const shift = (e: Endpoint): Endpoint => {
       if (!('objectId' in e) || e.dy === undefined) return e
       const a = this.doc.get(e.objectId)
       return isActor(a) ? { ...e, dy: messageDy(a, a.y + e.dy + dy) } : e
     }
-    return { ...c, from: shift(c.from), to: shift(c.to) }
+    const { pins: _pins, ...rest } = c
+    return { ...rest, from: shift(c.from), to: shift(c.to) }
   }
 
   /** Drag a connector end onto a shape (near a side dot or the outline it pins there, elsewhere it floats) or into free space. */

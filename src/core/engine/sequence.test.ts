@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createConnector, createShape, type BoardObject } from '../board/model'
-import { connectorGeometry, connectorPolyline } from './connectors'
+import { connectorGeometry, connectorHandles, connectorPolyline } from './connectors'
 import { actorBounds, actorSlot, lifeline, lifelineAt, messageDy, neighbourActor } from './sequence'
 
 const actor = (x: number, y = 0) => createShape('actor', x, y, 1)
@@ -66,6 +66,13 @@ describe('messages', () => {
     const moved = { ...b, x: 560 }
     const m = createConnector({ objectId: a.id, dy: 160 }, { objectId: b.id, dy: 160 }, 2)
     expect(connectorPolyline(m, (id) => (id === b.id ? moved : lookup(id)))?.[1]).toEqual({ x: 640, y: 160 })
+  })
+
+  it('slide along their lifelines rather than bend: no segment handles, old dragged segments ignored', () => {
+    const m = createConnector({ objectId: a.id, dy: 160 }, { objectId: b.id, dy: 160 }, 2)
+    expect(connectorHandles(m, lookup)?.segments).toEqual([])
+    const bent = { ...m, pins: { at: [{ y: 160 }, { x: 100 }, { y: 230 }, { x: 340 }, { y: 160 }], base: 1 } }
+    expect(connectorPolyline(bent, lookup)).toEqual(connectorPolyline(m, lookup))
   })
 
   it('loop back to the same actor', () => {
