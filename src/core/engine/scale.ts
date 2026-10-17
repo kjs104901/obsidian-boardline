@@ -56,10 +56,11 @@ function scaleShape(o: ShapeObject, anchor: Point, sx: number, sy: number, measu
     const h = Math.max(1, Math.round(o.h * k))
     return { ...o, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h, idealW: w, idealH: h }
   }
+  // Each edge lands on a whole pixel, so edges in line before stay in line.
   const x = Math.round(anchor.x + (o.x - anchor.x) * sx)
   const y = Math.round(anchor.y + (o.y - anchor.y) * sy)
-  const w = Math.max(1, Math.round(o.w * sx))
-  const h = Math.max(1, Math.round(o.h * sy))
+  const w = Math.max(1, Math.round(anchor.x + (o.x + o.w - anchor.x) * sx) - x)
+  const h = Math.max(1, Math.round(anchor.y + (o.y + o.h - anchor.y) * sy) - y)
   if (o.shape === 'freehand') return scaleStroke(o, x, y, w, h)
   // Text takes the width and wraps in it; its height follows the lines.
   if (o.shape === 'text') return autosizeShape({ ...o, x, y, w, idealW: w, fixedWidth: true }, measureAt)

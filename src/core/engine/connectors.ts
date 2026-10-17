@@ -210,6 +210,8 @@ function autoRoute(c: ConnectorObject, lookup: Lookup): Route | null {
 
   // Both ends pinned to sides: go round the shapes (they keep their sides when moved).
   if (from.dir && to.dir && from.rect && to.rect) {
+    const across = facingInLine(from, to)
+    if (across) return { points: across, ...attached }
     const around = routeBetweenSides({ point: from.point, dir: from.dir, rect: from.rect }, { point: to.point, dir: to.dir, rect: to.rect })
     if (around) return { points: around, ...attached }
   }
@@ -223,7 +225,46 @@ function autoRoute(c: ConnectorObject, lookup: Lookup): Route | null {
     rect: to.rect ? mapRect(to.rect, frame.fwd) : null,
   }
   const pts = routeNormalized(frame.fwd(start), from.rect ? mapRect(from.rect, frame.fwd) : null, tn)
-  return { points: simplify(pts.map(frame.back)), ...attached }
+  return { points: straightenJog(simplify(pts.map(frame.back)), to), ...attached }
+}
+
+/**
+ * Ends this close to in line (board px) run straight instead of jogging by a hair: two middles
+ * end up a sliver apart when sizes are rounded to whole pixels.
+ */
+const IN_LINE = 4
+
+const FACING: Record<Dir, Dir> = { right: 'left', left: 'right', down: 'up', up: 'down' }
+
+/** The far end's side spans `v` across the line (so the end can slide along it to meet the line). */
+function sideSpans(end: ResolvedEnd, across: 'x' | 'y', v: number): boolean {
+  if (!end.rect) return false
+  const lo = end.rect[across]
+  return v >= lo && v <= lo + (across === 'x' ? end.rect.w : end.rect.h)
+}
+
+/** Two pinned sides facing each other almost in line: straight across, the far end slid to meet it. */
+function facingInLine(from: ResolvedEnd, to: ResolvedEnd): Point[] | null {
+  if (!from.dir || to.dir !== FACING[from.dir]) return null
+  const along = from.dir === 'right' || from.dir === 'left' ? 'x' : 'y'
+  const across = along === 'x' ? 'y' : 'x'
+  const ahead = (to.point[along] - from.point[along]) * (from.dir === 'right' || from.dir === 'down' ? 1 : -1)
+  const v = from.point[across]
+  if (ahead <= 0 || Math.abs(to.point[across] - v) > IN_LINE || !sideSpans(to, across, v)) return null
+  return [from.point, { ...to.point, [across]: v }]
+}
+
+/** A route of three runs whose middle one is a hair long, the outer two going the same way: straight. */
+function straightenJog(pts: Point[], to: ResolvedEnd): Point[] {
+  if (pts.length !== 4) return pts
+  const [a, b, c, d] = pts
+  for (const along of ['x', 'y'] as const) {
+    const across = along === 'x' ? 'y' : 'x'
+    if (a[across] !== b[across] || c[across] !== d[across] || b[along] !== c[along]) continue
+    if (Math.abs(c[across] - b[across]) > IN_LINE || Math.sign(b[along] - a[along]) !== Math.sign(d[along] - c[along])) continue
+    if (sideSpans(to, across, a[across])) return [a, { ...d, [across]: a[across] }]
+  }
+  return pts
 }
 
 /** Untrimmed polyline of a connector, or null if an end is missing. */

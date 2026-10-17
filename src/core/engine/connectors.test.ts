@@ -310,3 +310,21 @@ describe('dragged segments over time', () => {
     expect(reversed.labelPos).toBe(0.75)
   })
 })
+
+describe('ends almost in line', () => {
+  // A's right side faces B's left; B sits `dy` lower (sizes rounded to whole pixels leave such slivers).
+  const routeWith = (dy: number) => {
+    const a = shape(100, 100, 200, 100)
+    const b = shape(500, 100 + dy, 200, 100)
+    return route([a, b], { objectId: a.id, side: 'right' }, { objectId: b.id, side: 'left' })!
+  }
+  it('runs straight when the middles are a sliver apart (no loop, no step)', () => {
+    for (const dy of [0.3, 0.5, 1, 2, 4]) {
+      const pts = routeWith(dy)
+      expect(pts.map((p) => [p.x, p.y]), `dy ${dy}`).toEqual([[300, 150], [500, 150]])
+    }
+  })
+  it('still bends when they are really apart', () => {
+    expect(routeWith(12).length).toBe(4)
+  })
+})
