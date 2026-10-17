@@ -3,8 +3,11 @@
 
 .bl-view {
   position: relative;
-  padding: 0 !important;
   overflow: hidden;
+}
+/* The board fills the view, as Obsidian's own canvas does. */
+.workspace-leaf-content[data-type='boardline-board'] .view-content {
+  padding: 0;
 }
 .bl-mount {
   position: absolute;
@@ -88,6 +91,9 @@
 }
 
 /* Settings: the third-party notices, folded. */
+.boardline-notices {
+  flex: 1;
+}
 .boardline-notices summary {
   cursor: pointer;
   color: var(--text-muted);

@@ -1089,7 +1089,7 @@
 .presenting .bl-size-label,
 .presenting .bl-find-bar,
 .presenting .bl-history-panel {
-  display: none !important;
+  display: none;
 }
 
 .bl-present-overlay {
