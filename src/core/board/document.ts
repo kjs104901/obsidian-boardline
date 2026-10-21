@@ -74,15 +74,19 @@ export class BoardDocument {
 
   /**
    * Apply a user edit as one undoable step. Ops with identical before/after are dropped.
-   * `mergeWithLast` adds them to the previous step instead (one gesture made of two edits).
+   * `mergeWithLast` adds them to the previous step instead (one gesture made of two edits):
+   * an object changed twice keeps one op, and one made and removed again leaves none (nor a
+   * step when nothing else is left in it).
    */
   commit(label: string, ops: Op[], mergeWithLast = false): void {
     const real = ops.filter((op) => !sameObject(op.before, op.after))
     if (real.length === 0) return
     this.applyOps(real, false)
     const last = this.undoStack[this.undoStack.length - 1]
-    if (mergeWithLast && last) last.ops = [...last.ops, ...real]
-    else {
+    if (mergeWithLast && last) {
+      last.ops = mergeOps([...last.ops, ...real])
+      if (last.ops.length === 0) this.undoStack.pop()
+    } else {
       this.undoStack.push({ label, ops: real })
       if (this.undoStack.length > MAX_UNDO) this.undoStack.shift()
     }
@@ -94,6 +98,11 @@ export class BoardDocument {
   setMeta(patch: Partial<BoardMeta>): void {
     this.meta = { ...this.meta, ...patch }
     for (const fn of this.listeners) fn({ source: 'meta', ids: [] })
+  }
+
+  /** Whether the last undoable step made the object `id`. */
+  madeInLastStep(id: string): boolean {
+    return !!this.undoStack[this.undoStack.length - 1]?.ops.some((op) => op.id === id && !op.before)
   }
 
   canUndo(): boolean {
@@ -148,6 +157,16 @@ export function updateOp(before: BoardObject, after: BoardObject): Op {
 
 export function deleteOp(obj: BoardObject): Op {
   return { id: obj.id, before: obj, after: null }
+}
+
+/** One op per object, from where it was before the first to where it is after the last. */
+function mergeOps(ops: Op[]): Op[] {
+  const byId = new Map<string, Op>()
+  for (const op of ops) {
+    const first = byId.get(op.id)
+    byId.set(op.id, first ? { id: op.id, before: first.before, after: op.after } : op)
+  }
+  return [...byId.values()].filter((op) => !sameObject(op.before, op.after))
 }
 
 function sameObject(a: BoardObject | null, b: BoardObject | null): boolean {

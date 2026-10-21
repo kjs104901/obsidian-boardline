@@ -4527,9 +4527,11 @@ export class BoardEditor {
     // A mind map branch left empty (and without branches of its own) goes too.
     const emptyBranch = !keepEmpty && isMindmap(after) && !!after.parentId && after.text.trim() === '' && !(this.layout().children.get(after.id)?.length)
     if (after && current && (emptyText || emptyBranch)) {
-      // An empty free-text object is removed when editing ends.
+      // An empty free-text object is removed when editing ends; one just made leaves no step
+      // to undo, and a branch hands the selection back to its parent.
       this.selection.delete(ed.id)
-      this.commit(t('undo.deleteText'), [deleteOp(current)])
+      if (emptyBranch && isMindmap(after) && after.parentId && this.selection.size === 0) this.selection.add(after.parentId)
+      this.commit(t('undo.deleteText'), [deleteOp(current)], this.doc.madeInLastStep(ed.id))
     } else if (after && current) this.commit(t('undo.editText'), [updateOp(ed.original, after)])
     this.requestRender()
     this.emitStatus()

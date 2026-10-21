@@ -45,6 +45,21 @@ describe('BoardDocument', () => {
     expect(xOf(doc, a.id)).toBe(24)
   })
 
+  it('leaves no step for an object made and removed again (a new node left empty)', () => {
+    const doc = new BoardDocument(meta())
+    const a = createShape('rect', 0, 0, 1)
+    const b = createShape('text', 0, 0, 2)
+    doc.commit('add a', [createOp(a)])
+    doc.commit('add b', [createOp(b)])
+    expect(doc.madeInLastStep(b.id)).toBe(true)
+    expect(doc.madeInLastStep(a.id)).toBe(false)
+    doc.commit('remove b', [deleteOp(b)], true)
+    expect(doc.get(b.id)).toBeUndefined()
+    doc.undo()
+    expect(doc.get(a.id)).toBeUndefined()
+    expect(doc.canUndo()).toBe(false)
+  })
+
   it('drops no-op changes and clears redo on a new edit', () => {
     const doc = new BoardDocument(meta())
     const a = createShape('rect', 0, 0, 1)
