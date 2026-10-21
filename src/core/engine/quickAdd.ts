@@ -1,8 +1,9 @@
 // Quick-add placement: a new shape goes four grid steps away in the chosen direction; if that
-// spot is taken it moves two steps past the blocking shapes, sideways.
+// spot is taken it moves two steps past the blocking shapes, sideways. Sections are backdrops:
+// quick add puts shapes on them, and the section a shape starts in grows to keep the new one.
 
 import type { ShapeObject, Side } from '../board/model'
-import { GRID, unionRects, type Rect } from './geometry'
+import { GRID, containsRect, unionRects, type Rect } from './geometry'
 
 export const QUICK_ADD_GAP = 80
 export const QUICK_ADD_SIBLING_GAP = 40
@@ -37,7 +38,8 @@ function overlaps(a: Rect, b: Rect): boolean {
 
 /**
  * Room beside `source` on `side` for a shape the size of `size` (the source itself by default),
- * `spacing.gap` away and `spacing.aside` apart from what is in the way.
+ * `spacing.gap` away and `spacing.aside` apart from what is in the way. Shapes in `connected`
+ * are only stepped around, never joined.
  */
 export function planQuickAdd(
   source: ShapeObject,
@@ -51,7 +53,7 @@ export function planQuickAdd(
   const across = (from: number, len: number, own: number) => from + Math.round((len - own) / 2 / GRID) * GRID
   const base = { ...source, x: across(source.x, source.w, size.w), y: across(source.y, source.h, size.h) }
   let rect = placeNext(source, { w: size.w, h: size.h }, side, spacing.gap, base)
-  const others = shapes.filter((s) => s.id !== source.id)
+  const others = shapes.filter((s) => s.id !== source.id && s.shape !== 'section')
   let blocking = others.filter((o) => overlaps(o, rect))
 
   const reusable = blocking.find((o) => !connected.has(o.id))
@@ -65,4 +67,30 @@ export function planQuickAdd(
     blocking = [...blocking, ...more]
   }
   return { rect, existingId: null }
+}
+
+/**
+ * The sections around `source` grown where the new shape at `rect` would stick out of them
+ * (so they still carry it), innermost first. Each grows past it by the room it leaves around
+ * what it holds on that side, at least a grid step and at most `most`. Locked ones stay.
+ */
+export function growSections(source: ShapeObject, rect: Rect, shapes: ShapeObject[], most: number): ShapeObject[] {
+  const holding = shapes
+    .filter((o) => o.shape === 'section' && o.id !== source.id && !o.locked && containsRect(o, source))
+    .sort((a, b) => a.w * a.h - b.w * b.h)
+  const done: { before: ShapeObject; after: ShapeObject }[] = []
+  for (const s of holding) {
+    const inner = done.filter((d) => containsRect(s, d.before))
+    const need = unionRects([rect, ...inner.map((d) => d.after)])!
+    const held = [source, ...inner.map((d) => d.before)]
+    const room = (gap: (r: Rect) => number) => Math.min(most, Math.max(GRID, Math.min(...held.map(gap))))
+    const x0 = need.x < s.x ? need.x - room((r) => r.x - s.x) : s.x
+    const y0 = need.y < s.y ? need.y - room((r) => r.y - s.y) : s.y
+    const x1 = need.x + need.w > s.x + s.w ? need.x + need.w + room((r) => s.x + s.w - r.x - r.w) : s.x + s.w
+    const y1 = need.y + need.h > s.y + s.h ? need.y + need.h + room((r) => s.y + s.h - r.y - r.h) : s.y + s.h
+    const w = x1 - x0
+    const h = y1 - y0
+    done.push({ before: s, after: w === s.w && h === s.h ? s : { ...s, x: x0, y: y0, w, h, idealW: w, idealH: h } })
+  }
+  return done.filter((d) => d.after !== d.before).map((d) => d.after)
 }

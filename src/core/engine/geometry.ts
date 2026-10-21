@@ -30,6 +30,10 @@ export function rectsIntersect(a: Rect, b: Rect): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
 }
 
+export function containsRect(outer: Rect, inner: Rect): boolean {
+  return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
+}
+
 /** Rect spanning two arbitrary corner points. */
 export function rectFromPoints(a: Point, b: Point): Rect {
   return {

@@ -52,6 +52,7 @@ import {
 import {
   GRID,
   LARGE_NUDGE,
+  containsRect,
   distance,
   expandRect,
   pointInPolygon,
@@ -111,7 +112,7 @@ import { labelBoxOf, previewSvg, sceneOf, standaloneScene } from './scene'
 import { buildDiagram, mermaidKind, parseMermaid } from '../board/mermaidImport'
 import { toMermaid } from './mermaid'
 import { applyStyle, saveDefaultStyle, styleOf, withDefaultStyle, type Style } from '../board/styles'
-import { planQuickAdd, type QuickAddPlan } from './quickAdd'
+import { growSections, planQuickAdd, type QuickAddPlan } from './quickAdd'
 import {
   CONNECTOR_END_RADIUS,
   DOT_HOVER_RADIUS,
@@ -1277,6 +1278,7 @@ export class BoardEditor {
     let previewConnector: ConnectorObject | null = null
     let lookup = this.lookup
     let targetId: string | null = null
+    let grown = new Map<string, ShapeObject>()
 
     const placing = it.kind === 'create' ? this.createdShape(it) : it.kind === 'idle' ? this.placing : null
     if (it.kind === 'endpoint' && it.dragging) targetId = it.targetId
@@ -1288,13 +1290,15 @@ export class BoardEditor {
     const inCell = !!source && this.activeCell?.id === source.id
     const showDots = !!source && !inCell && !this.cropping && this.tool.kind === 'select' && !this.editing && (it.kind === 'idle' || it.kind === 'connect')
     if (source && showDots && this.hoverDot && it.kind === 'idle') {
-      // Quick-add preview: where the new shape would go and the connector to it (none for stickies).
-      const { plan, template } = this.planQuickAdd(source, this.hoverDot)
+      // Quick-add preview: where the new shape would go, the connector to it (none for stickies)
+      // and the sections growing to keep it.
+      const { plan, template, sections } = this.planQuickAdd(source, this.hoverDot)
       const ghostShape: ShapeObject = { ...template, id: GHOST_ID, x: plan.rect.x, y: plan.rect.y, w: plan.rect.w, h: plan.rect.h }
       if (!plan.existingId) ghost = { shape: template.shape, rect: plan.rect }
       const targetIdForPreview = plan.existingId ?? GHOST_ID
       if (source.shape !== 'sticky') previewConnector = this.tempConnector({ objectId: source.id, side: this.hoverDot }, { objectId: targetIdForPreview, side: OPPOSITE_SIDE[this.hoverDot] })
-      lookup = (id) => (id === GHOST_ID ? ghostShape : this.lookup(id))
+      grown = new Map(sections.map((s) => [s.id, s]))
+      lookup = (id) => (id === GHOST_ID ? ghostShape : grown.get(id) ?? this.lookup(id))
     }
 
     // Selected actor: add-actor dots, lifeline handle, and the add-message circle.
@@ -1354,6 +1358,7 @@ export class BoardEditor {
             : null
 
     let objects = this.currentObjects()
+    if (grown.size) objects = objects.map((o) => grown.get(o.id) ?? o)
     if (it.kind === 'draw') objects = [...objects, strokeShape(it.points, it.pen, this.penColors[it.pen], Infinity)]
     if (it.kind === 'erase') objects = objects.filter((o) => !it.hits.has(o.id))
     const lasso = it.kind === 'lasso' ? it.points : null
@@ -2961,8 +2966,8 @@ export class BoardEditor {
     const source = this.doc.get(sourceId)
     if (!isShape(source)) return
     this.commitEditing()
-    const { plan, template } = this.planQuickAdd(source, side)
-    const ops: Op[] = []
+    const { plan, template, sections } = this.planQuickAdd(source, side)
+    const ops: Op[] = sections.map((s) => updateOp(this.doc.get(s.id)!, s))
     let targetId = plan.existingId
     let z = this.doc.maxZ() + 1
     if (!targetId) {
@@ -2980,15 +2985,18 @@ export class BoardEditor {
   }
 
   /**
-   * Where quick add from `source` on `side` goes, and the shape it would put there. Stickies
-   * line up a grid step apart without lines between them, making room rather than joining a
-   * sticky already there.
+   * Where quick add from `source` on `side` goes, the shape it would put there, and the sections
+   * that grow to keep it. Stickies line up a grid step apart without lines between them, making
+   * room rather than joining a sticky already there. Shapes that take no lines are only stepped around.
    */
-  private planQuickAdd(source: ShapeObject, side: Side): { plan: QuickAddPlan; template: ShapeObject } {
+  private planQuickAdd(source: ShapeObject, side: Side): { plan: QuickAddPlan; template: ShapeObject; sections: ShapeObject[] } {
     const shapes = this.shapes()
-    if (source.shape === 'sticky') return { plan: planQuickAdd(source, side, shapes, new Set(shapes.map((o) => o.id)), source, { gap: GRID, aside: GRID }), template: source }
-    const template = COPIED_BY_QUICK_ADD.has(source.shape) ? source : withDefaultStyle(createShape('rect', source.x, source.y, source.z))
-    return { plan: planQuickAdd(source, side, shapes, this.connectedTo(source.id), template), template }
+    const sticky = source.shape === 'sticky'
+    const template = sticky || COPIED_BY_QUICK_ADD.has(source.shape) ? source : withDefaultStyle(createShape('rect', source.x, source.y, source.z))
+    const unjoinable = sticky ? shapes.map((o) => o.id) : [...this.connectedTo(source.id), ...shapes.filter((o) => !canConnect(o)).map((o) => o.id)]
+    const plan = planQuickAdd(source, side, shapes, new Set(unjoinable), template, sticky ? { gap: GRID, aside: GRID } : undefined)
+    const sections = plan.existingId ? [] : growSections(source, { ...plan.rect, h: template.idealH }, shapes, WRAP_PADDING)
+    return { plan, template, sections }
   }
 
   /** Ctrl+G groups the selected shapes; Ctrl+Shift+G ungroups them. */
@@ -4842,11 +4850,6 @@ function translate(o: BoardObject, dx: number, dy: number, withPins = false): Bo
 /** Sections sit behind other objects and carry what lies inside them. */
 function isContainer(o: ShapeObject): boolean {
   return o.shape === 'section'
-}
-
-
-function containsRect(outer: Rect, inner: Rect): boolean {
-  return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
 }
 
 function rectContainsPoint(r: Rect, p: Point): boolean {

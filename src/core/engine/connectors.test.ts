@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createConnector, createShape, type BoardObject, type Endpoint, type ShapeObject } from '../board/model'
 import { applyPins, connectorGeometry, connectorHandles, connectorPolyline, END_GAP, lengthAtPoint, pinSegment, pinsApply, polylineLength, reverseConnector, segmentSnapValues, shiftPins, withoutIdlePins } from './connectors'
-import { planQuickAdd } from './quickAdd'
+import { growSections, planQuickAdd } from './quickAdd'
 
 const shape = (x: number, y: number, w = 200, h = 100): ShapeObject => ({ ...createShape('rect', x, y, 1), w, h })
 
@@ -103,6 +103,34 @@ describe('quick-add placement', () => {
   it('reuses an unconnected shape already at the spot', () => {
     const lonely = shape(600, 420)
     expect(planQuickAdd(a, 'right', [a, lonely], new Set()).existingId).toBe(lonely.id)
+  })
+
+  // Section 200..1000 x 300..600 around A (300..500 x 400..500): 100 of room on the left, 500 on the right.
+  const section = createShape('section', 200, 300, 0, { w: 800, h: 300 })
+
+  it('puts the shape on the section it starts in, neither joining it nor stepping round it', () => {
+    expect(planQuickAdd(a, 'right', [section, a], new Set())).toEqual({ rect: { ...a, x: 580 }, existingId: null })
+    const sticky = { ...createShape('sticky', 300, 320, 1), w: 200, h: 200 }
+    expect(planQuickAdd(sticky, 'right', [section, sticky], new Set([section.id, sticky.id]), sticky, { gap: 20, aside: 20 }).rect).toMatchObject({ x: 520, y: 320 })
+  })
+
+  it('grows the section where the new shape would stick out, by the room it leaves (80 at most)', () => {
+    expect(growSections(a, { ...a, x: 580 }, [section, a], 80)).toEqual([])
+    expect(growSections(a, { ...a, x: 900 }, [section, a], 80)).toEqual([{ ...section, w: 980, idealW: 980 }])
+    expect(growSections(a, { ...a, y: 580 }, [section, a], 80)).toEqual([{ ...section, h: 460, idealH: 460 }])
+    expect(growSections(a, { ...a, x: 20 }, [section, a], 80)).toEqual([{ ...section, x: -60, w: 1060, idealW: 1060 }])
+    // A pressed against the edge still leaves a grid step.
+    const tight = { ...section, x: 300 }
+    expect(growSections(a, { ...a, x: 100 }, [tight, a], 80)).toMatchObject([{ x: 80 }])
+  })
+
+  it('grows the sections around the one it starts in to keep that one, and leaves locked ones', () => {
+    // Outer 100..1100: 100 of room right of the section, so it ends 80 past it.
+    const outer = createShape('section', 100, 200, -1, { w: 1000, h: 500 })
+    const [inner, wrap] = growSections(a, { ...a, x: 900 }, [outer, section, a], 80)
+    expect(inner).toMatchObject({ id: section.id, x: 200, w: 980 })
+    expect(wrap).toMatchObject({ id: outer.id, x: 100, w: 1160 })
+    expect(growSections(a, { ...a, x: 900 }, [{ ...section, locked: true }, a], 80)).toEqual([])
   })
 })
 
