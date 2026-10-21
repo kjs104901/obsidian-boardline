@@ -792,14 +792,19 @@ export class BoardEditor {
       if (cut && !this.readOnly && !cell.table.locked) this.commit(t('undo.cutCells'), [updateOp(cell.table, autosizeTable(clearCells(cell.table, r), measureAt))])
       return
     }
-    const payload = copyObjects(this.selection, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id))
+    const ids = this.selectionWithHeld()
+    const payload = copyObjects(ids, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id))
     const text = this.plainTextOf(payload.objects)
     clipboard = { payload, text }
     lastPaste = null
     e.clipboardData?.setData(CLIPBOARD_MIME, JSON.stringify(payload))
     e.clipboardData?.setData('text/plain', text)
     e.preventDefault()
-    if (cut) this.deleteSelection()
+    if (cut) {
+      // What went on the clipboard leaves the board.
+      this.selection = ids
+      this.deleteSelection()
+    }
   }
 
   /** Text of objects in reading order, one per line (for pasting into other apps). */
@@ -1063,7 +1068,7 @@ export class BoardEditor {
 
   duplicateSelection(): void {
     if (this.selection.size === 0) return
-    this.insertCopies(copyObjects(this.selection, this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id)), PASTE_STEP, t('edit.duplicate'))
+    this.insertCopies(copyObjects(this.selectionWithHeld(), this.doc.ordered(), this.lookup, (id) => this.layout().boxes.get(id)), PASTE_STEP, t('edit.duplicate'))
   }
 
   private insertCopies(payload: ClipboardPayload, offset: number, label: string): void {
@@ -2456,51 +2461,10 @@ export class BoardEditor {
       }
       // Alt+drag leaves the selection where it is and drags a copy of it.
       const copies = it.alt && this.copyInPlace()
-      // Shapes move; mind map nodes move their whole tree (via the root);
-      // connectors only carry their free (unattached) ends along.
+      // A copied section brought copies of what it holds.
+      const { originals, rigid, slide } = this.moving(!copies)
       const layout = this.layout()
-      const originals = new Map<string, BoardObject>()
-      for (const id of this.selection) {
-        const o = this.doc.get(id)
-        if (isMindmap(o)) {
-          const root = this.doc.get(layout.rootOf.get(id) ?? id)
-          if (root) originals.set(root.id, root)
-        } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o)
-      }
-      for (const [id, o] of originals) if (o.locked) originals.delete(id)
-      // A section carries everything that lies inside it (a copied one brought copies of it).
-      for (const o of copies ? [] : [...originals.values()]) {
-        if (!isShape(o) || !isContainer(o)) continue
-        for (const inner of this.doc.ordered()) {
-          if (originals.has(inner.id) || inner.id === o.id || isConnector(inner) || inner.locked) continue
-          if (isMindmap(inner) && inner.parentId) continue
-          const r = this.rectOf(inner, layout)
-          if (r && containsRect(o, r)) originals.set(inner.id, inner)
-        }
-      }
       const rects = [...originals.values()].filter((o) => !isConnector(o)).map((o) => this.rectOf(o, layout)).filter(isDefined)
-      // Pinned segments travel with a connector whose attached ends all move.
-      const rigid = new Set<string>()
-      for (const o of this.doc.objects.values()) {
-        if (!isConnector(o) || !o.pins) continue
-        const attached = [endpointObjectId(o.from), endpointObjectId(o.to)].filter((id): id is string => id !== null)
-        // Free ends only move when the connector itself is part of the selection.
-        const hasFreeEnd = attached.length < 2
-        if (attached.every((id) => originals.has(id)) && (!hasFreeEnd || originals.has(o.id))) {
-          originals.set(o.id, o)
-          rigid.add(o.id)
-        }
-      }
-      // Selected messages whose actors stay put slide up and down their lifelines.
-      const slide = new Set<string>()
-      for (const id of this.selection) {
-        const o = this.doc.get(id)
-        if (!isConnector(o) || o.locked || !('objectId' in o.from) || !('objectId' in o.to)) continue
-        if (o.from.dy === undefined || o.to.dy === undefined) continue
-        if (originals.has(o.from.objectId) || originals.has(o.to.objectId)) continue
-        originals.set(o.id, o)
-        slide.add(o.id)
-      }
       if (originals.size === 0) {
         // Only locked objects (or lines fixed at both ends) under the pointer: drag a selection box instead.
         const base = it.shift ? new Set(this.selection) : new Set<string>()
@@ -2519,6 +2483,58 @@ export class BoardEditor {
     this.hoverId = null
     this.hoverDot = null
     this.emitStatus()
+  }
+
+  /**
+   * What moving the selection (by dragging or by the arrow keys) moves. Locked objects stay.
+   * `carry`: selected sections take what they hold along.
+   */
+  private moving(carry: boolean): { originals: Map<string, BoardObject>; rigid: Set<string>; slide: Set<string> } {
+    // Shapes move; mind map nodes move their whole tree (via the root);
+    // connectors only carry their free (unattached) ends along.
+    const layout = this.layout()
+    const originals = new Map<string, BoardObject>()
+    for (const id of this.selection) {
+      const o = this.doc.get(id)
+      if (isMindmap(o)) {
+        const root = this.doc.get(layout.rootOf.get(id) ?? id)
+        if (root) originals.set(root.id, root)
+      } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o)
+    }
+    for (const [id, o] of originals) if (o.locked) originals.delete(id)
+    // A section carries everything that lies inside it.
+    for (const o of carry ? [...originals.values()] : []) {
+      if (!isShape(o) || !isContainer(o)) continue
+      for (const inner of this.doc.ordered()) {
+        if (originals.has(inner.id) || inner.id === o.id || isConnector(inner) || inner.locked) continue
+        if (isMindmap(inner) && inner.parentId) continue
+        const r = this.rectOf(inner, layout)
+        if (r && containsRect(o, r)) originals.set(inner.id, inner)
+      }
+    }
+    // Pinned segments travel with a connector whose attached ends all move.
+    const rigid = new Set<string>()
+    for (const o of this.doc.objects.values()) {
+      if (!isConnector(o) || !o.pins) continue
+      const attached = [endpointObjectId(o.from), endpointObjectId(o.to)].filter((id): id is string => id !== null)
+      // Free ends only move when the connector itself is part of the selection.
+      const hasFreeEnd = attached.length < 2
+      if (attached.every((id) => originals.has(id)) && (!hasFreeEnd || originals.has(o.id))) {
+        originals.set(o.id, o)
+        rigid.add(o.id)
+      }
+    }
+    // Selected messages whose actors stay put slide up and down their lifelines.
+    const slide = new Set<string>()
+    for (const id of this.selection) {
+      const o = this.doc.get(id)
+      if (!isConnector(o) || o.locked || !('objectId' in o.from) || !('objectId' in o.to)) continue
+      if (o.from.dy === undefined || o.to.dy === undefined) continue
+      if (originals.has(o.from.objectId) || originals.has(o.to.objectId)) continue
+      originals.set(o.id, o)
+      slide.add(o.id)
+    }
+    return { originals, rigid, slide }
   }
 
   /**
@@ -2814,11 +2830,8 @@ export class BoardEditor {
     this.commit(label, ops, mergeWithLast)
   }
 
-  /**
-   * Copies of the selection (and of what lies inside selected sections) right on top of it,
-   * selected instead: the start of an Alt+drag.
-   */
-  private copyInPlace(): boolean {
+  /** The selection and what lies inside selected sections: what copying it copies. */
+  private selectionWithHeld(): Set<string> {
     const layout = this.layout()
     const ids = new Set(this.selection)
     for (const id of this.selection) {
@@ -2830,7 +2843,16 @@ export class BoardEditor {
         if (r && containsRect(o, r)) ids.add(inner.id)
       }
     }
-    const payload = copyObjects(ids, this.doc.ordered(), this.lookup, (id) => layout.boxes.get(id))
+    return ids
+  }
+
+  /**
+   * Copies of the selection (and of what lies inside selected sections) right on top of it,
+   * selected instead: the start of an Alt+drag.
+   */
+  private copyInPlace(): boolean {
+    const layout = this.layout()
+    const payload = copyObjects(this.selectionWithHeld(), this.doc.ordered(), this.lookup, (id) => layout.boxes.get(id))
     const copies = pasteObjects(payload, 0, 0, this.doc.maxZ() + 1).map((o) => {
       const { locked: _locked, ...rest } = o
       return rest
@@ -3951,11 +3973,11 @@ export class BoardEditor {
   // ---- export ---------------------------------------------------------------
 
   /**
-   * What an export shows: the selection (whole mind map trees, plus connectors whose attached
-   * ends are all included) or, with nothing selected, the whole board.
+   * What an export shows: the selection (with what selected sections hold, whole mind map trees,
+   * plus connectors whose attached ends are all included) or, with nothing selected, the whole board.
    */
   exportScene(): ExportScene | null {
-    return this.sceneFor(this.selection.size ? this.selection : null)
+    return this.sceneFor(this.selection.size ? this.selectionWithHeld() : null)
   }
 
   /** Scene of `chosen` (with whole mind maps and the connectors between them), or of everything. */
@@ -4761,17 +4783,16 @@ export class BoardEditor {
     }
   }
 
-  /** Arrow keys move by one grid step, Shift by LARGE_NUDGE. */
+  /** Arrow keys move by one grid step, Shift by LARGE_NUDGE, taking along what a drag would. */
   private nudge(key: string, step: number): void {
     const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0
     const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0
-    const { rootOf } = this.layout()
-    const ids = new Set([...this.selection].map((id) => (isMindmap(this.doc.get(id)) ? (rootOf.get(id) ?? id) : id)))
-    const ops = [...ids]
-      .map((id) => this.doc.get(id))
-      .filter(isDefined)
-      .filter((o) => !o.locked)
-      .map((o) => updateOp(o, translate(o, dx, dy)))
+    const { originals, rigid, slide } = this.moving(true)
+    const ops: Op[] = []
+    for (const [id, o] of originals) {
+      if (!slide.has(id)) ops.push(updateOp(o, translate(o, dx, dy, rigid.has(id))))
+      else if (dy !== 0 && isConnector(o)) ops.push(updateOp(o, this.slideMessage(o, dy)))
+    }
     this.commit(t('undo.move'), ops)
   }
 
