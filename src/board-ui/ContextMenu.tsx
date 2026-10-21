@@ -54,14 +54,16 @@ export function ContextMenu(props: Props) {
     el.classList.toggle('flip-sub', left + el.offsetWidth + 210 > parent.clientWidth)
   })
 
-  // A press elsewhere, Esc or the wheel closes it.
+  // A press elsewhere, Esc or the wheel closes it (Esc only the menu, not the selection too).
   useEffect(() => {
     const doc = ref.current?.ownerDocument ?? document
     const onDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose()
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
     }
     doc.addEventListener('pointerdown', onDown, true)
     doc.addEventListener('keydown', onKey, true)

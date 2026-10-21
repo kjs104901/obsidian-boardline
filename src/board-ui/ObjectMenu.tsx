@@ -188,10 +188,18 @@ export function MenuItem(props: { label: string; keys?: string; disabled?: boole
   )
 }
 
-/** A menu row that opens its items beside it on hover. */
+/** A menu row that opens its items beside it on hover (moved up as far as the board needs). */
 export function SubMenu(props: { label: string; disabled?: boolean; children: ReactNode }) {
+  const fit = (row: HTMLDivElement) => {
+    const items = row.querySelector<HTMLElement>(':scope > .bl-submenu')
+    const board = row.closest('.bl-root')
+    if (!items || !board) return
+    items.style.removeProperty('top')
+    const over = items.getBoundingClientRect().bottom - (board.getBoundingClientRect().bottom - 8)
+    if (over > 0) items.style.top = `${items.offsetTop - over}px`
+  }
   return (
-    <div className={'bl-menu-sub' + (props.disabled ? ' disabled' : '')}>
+    <div className={'bl-menu-sub' + (props.disabled ? ' disabled' : '')} onMouseEnter={(e) => fit(e.currentTarget)}>
       <button className="bl-menu-item" disabled={props.disabled}>
         <span>{props.label}</span>
         <span className="bl-chevron">›</span>

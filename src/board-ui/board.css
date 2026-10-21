@@ -402,6 +402,12 @@
   box-shadow: 0 4px 16px oklch(0% 0 0 / 35%);
 }
 
+/* A menu with no room below its button opens above it. */
+.bl-menu.up {
+  top: auto;
+  bottom: 36px;
+}
+
 /* Two rows of six: the neutrals and warm hues, then the cool ones. */
 .bl-color-menu {
   grid-template-columns: repeat(6, 30px);
@@ -494,7 +500,7 @@
   background: var(--bl-panel-2);
 }
 
-.bl-context-menu.flip-sub .bl-menu-sub > .bl-submenu {
+.bl-menu.flip-sub .bl-menu-sub > .bl-submenu {
   left: auto;
   right: 100%;
 }

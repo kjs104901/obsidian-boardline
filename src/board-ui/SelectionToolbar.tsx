@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ARROW_LENGTH, capPrimitives } from '@boardline/core/engine/caps'
 import { reverseConnector } from '@boardline/core/engine/connectors'
 import type { BoardEditor, EditorStatus } from '@boardline/core/engine/editor'
@@ -122,7 +122,8 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
   if (open.menu && open.for !== selectionKey) setOpen({ menu: null, for: '' })
   const [pickStyle, setPickStyle] = useState<IconStyle>('fill')
   const barRef = useRef<HTMLDivElement>(null)
-  // The bar stays inside the board when the selection is near its left or right edge.
+  // The bar stays inside the board when the selection is near its left or right edge, and
+  // clear of the tool bar and the view controls at its height when it fits between them.
   useLayoutEffect(() => {
     const bar = barRef.current
     const parent = bar?.offsetParent as HTMLElement | null
@@ -141,12 +142,60 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
       return
     }
     const half = bar.offsetWidth / 2
-    const center = parseFloat(bar.style.left)
-    const fitted = Math.max(half + 8, Math.min(center, parent.clientWidth - half - 8))
-    if (fitted !== center) bar.style.left = `${fitted}px`
+    const center = Number(bar.dataset.center)
+    const y0 = parseFloat(bar.style.top)
+    const y1 = y0 + bar.offsetHeight
+    let lo = 8
+    let hi = parent.clientWidth - 8
+    for (const side of parent.querySelectorAll<HTMLElement>(':scope > .bl-toolbar, :scope > .bl-view-controls')) {
+      if (side.offsetTop > y1 || side.offsetTop + side.offsetHeight < y0) continue
+      if (side.offsetLeft + side.offsetWidth / 2 < parent.clientWidth / 2) lo = Math.max(lo, side.offsetLeft + side.offsetWidth + 8)
+      else hi = Math.min(hi, side.offsetLeft - 8)
+    }
+    if (hi - lo < bar.offsetWidth) [lo, hi] = [8, parent.clientWidth - 8]
+    bar.style.left = `${Math.max(lo + half, Math.min(center, hi - half))}px`
     // Wrapped onto more rows (a narrow board), a bar above the selection grows upward, clear of it.
     const extra = bar.offsetHeight - TOOLBAR_HEIGHT
     if (bar.dataset.place === 'above') bar.style.top = `${extra > 0 ? top - extra : top}px`
+  })
+  // An open menu closes on a press anywhere but on it and its button (the tool bar, the view
+  // controls…), and on Esc, which then does nothing else (the selection and the text being typed stay).
+  useEffect(() => {
+    const doc = barRef.current?.ownerDocument
+    if (!menu || !doc) return
+    const close = () => setOpen({ menu: null, for: '' })
+    const onDown = (e: PointerEvent) => {
+      const anchor = barRef.current?.querySelector('.bl-menu:not(.bl-submenu)')?.parentElement
+      if (!anchor?.contains(e.target as Node)) close()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      e.preventDefault()
+      close()
+    }
+    doc.addEventListener('pointerdown', onDown, true)
+    doc.addEventListener('keydown', onKey, true)
+    return () => {
+      doc.removeEventListener('pointerdown', onDown, true)
+      doc.removeEventListener('keydown', onKey, true)
+    }
+  }, [menu])
+  // An open menu stays on the board: above its button when there is no room below, else as far
+  // up as it needs; its submenus open on the left when there is no room on the right.
+  useLayoutEffect(() => {
+    const list = barRef.current?.querySelector<HTMLElement>('.bl-menu:not(.bl-submenu)')
+    const board = barRef.current?.offsetParent
+    if (!list || !board || !list.parentElement) return
+    list.classList.remove('up')
+    list.style.removeProperty('top')
+    const room = board.getBoundingClientRect()
+    const r = list.getBoundingClientRect()
+    const button = list.parentElement.getBoundingClientRect()
+    list.classList.toggle('flip-sub', r.right + 210 > room.right)
+    if (r.bottom <= room.bottom - 8) return
+    if (button.top - 6 - r.height >= room.top + 8) list.classList.add('up')
+    else list.style.top = `${Math.max(room.top + 8, room.bottom - 8 - r.height) - button.top}px`
   })
   // While text is typed, the bar keeps only its text buttons, which act on the selected words.
   const typing = status.textEditing
@@ -253,7 +302,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
   // Cropping a picture: keep the frame, frame the whole picture again, or go back.
   if (status.cropping) {
     return (
-      <div ref={barRef} className="bl-selection-toolbar" style={{ top, left }} onPointerDown={(e) => e.stopPropagation()}>
+      <div ref={barRef} className="bl-selection-toolbar" style={{ top, left }} data-center={left} onPointerDown={(e) => e.stopPropagation()}>
         <button title={t('crop.apply')} onClick={() => editor.finishCrop()}>
           <ToolbarIcon d="M4 9.5l3.5 3.5L14 5.5" />
         </button>
@@ -279,6 +328,7 @@ export function SelectionToolbar({ editor, status, onNotice, onOpenLink, onLinkD
         className={'bl-selection-toolbar' + (onlyNodes ? ' beside' : '') + (leftSide ? ' on-left' : '')}
         style={{ top, left }}
         data-place={onlyNodes ? 'beside' : below ? 'below' : 'above'}
+        data-center={left}
         data-above={box.y - TOOLBAR_HEIGHT - 12}
         data-below={box.y + box.h + 12}
         data-node-left={box.x}
