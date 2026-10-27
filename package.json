@@ -1,7 +1,7 @@
 {
   "name": "boardline",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "license": "MIT",
   "description": "Whiteboards for Obsidian: flowcharts, mind maps, sequence diagrams, tables and sticky notes.",
   "type": "module",
