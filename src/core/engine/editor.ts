@@ -2611,7 +2611,36 @@ export class BoardEditor {
   /** Every change the editor makes goes through here; a read-only view makes none. */
   private commit(label: string, ops: Op[], mergeWithLast = false): void {
     if (this.readOnly) return
-    this.doc.commit(label, [...ops, ...this.idlePinOps(ops)], mergeWithLast)
+    const all = [...ops, ...this.heldMoveOps(ops)]
+    this.doc.commit(label, [...all, ...this.idlePinOps(all)], mergeWithLast)
+  }
+
+  /**
+   * A section `ops` move (not resize) takes what it holds along, as a drag does (aligning, snapping
+   * to the grid…): what `ops` don't move already, unless locked, and the dragged segments of lines
+   * between them.
+   */
+  private heldMoveOps(ops: Op[]): Op[] {
+    const touched = new Set(ops.map((op) => op.id))
+    const out: Op[] = []
+    for (const op of ops) {
+      const [a, b] = [op.before, op.after]
+      if (!isShape(a) || !isShape(b) || !isContainer(a) || a.w !== b.w || a.h !== b.h || (a.x === b.x && a.y === b.y)) continue
+      const held = this.heldBy([a.id]).filter((o) => !touched.has(o.id) && !o.locked)
+      if (held.length === 0) continue
+      const moved = new Set([a.id, ...held.map((o) => o.id)])
+      for (const o of held) {
+        touched.add(o.id)
+        out.push(updateOp(o, translate(o, b.x - a.x, b.y - a.y)))
+      }
+      for (const c of this.doc.objects.values()) {
+        if (!isConnector(c) || !c.pins || touched.has(c.id)) continue
+        if (![endpointObjectId(c.from), endpointObjectId(c.to)].every((id) => id !== null && moved.has(id))) continue
+        touched.add(c.id)
+        out.push(updateOp(c, translate(c, b.x - a.x, b.y - a.y, true)))
+      }
+    }
+    return out
   }
 
   /**
@@ -3944,7 +3973,9 @@ export class BoardEditor {
   /** Move the selection to the front/back, or one step forward/backward, as one undoable step. */
   reorder(how: 'front' | 'back' | 'forward' | 'backward'): void {
     const ordered = this.doc.ordered()
-    const sel = (o: BoardObject) => this.selection.has(o.id)
+    // A section goes with what it holds, which stays over it.
+    const chosen = this.selectionWithHeld()
+    const sel = (o: BoardObject) => chosen.has(o.id)
     if (!ordered.some(sel)) return
     let list = [...ordered]
     if (how === 'front') list = [...list.filter((o) => !sel(o)), ...list.filter(sel)]
