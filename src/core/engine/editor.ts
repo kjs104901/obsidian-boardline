@@ -125,6 +125,7 @@ import {
   corners,
   cropHandles,
   drawBounds,
+  sectionsUnder,
   type ResizeHandle,
 } from './renderer'
 import { minScales, scaleObject } from './scale'
@@ -4479,7 +4480,9 @@ export class BoardEditor {
       s.fontSize = `${LABEL_FONT_SIZE * zoom}px`
       s.lineHeight = `${LABEL_LINE_HEIGHT * zoom}px`
       s.paddingTop = `${(LABEL_PADDING / 2) * zoom - 1}px`
-      s.background = theme.canvasBg
+      // The board's color, then the see-through fill of each section under the label.
+      const fill = `linear-gradient(${theme.sectionFill}, ${theme.sectionFill})`
+      s.background = [...sectionsUnder(this.doc.ordered(), at, o.z).map(() => fill), theme.canvasBg].join(', ')
       s.borderColor = theme.selection
       return
     }

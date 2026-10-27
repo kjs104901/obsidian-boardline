@@ -8,7 +8,7 @@ import { ARROW_LENGTH, capPrimitives, shortenEnd } from './caps'
 import { SEQUENCE_LINE_WIDTH, connectorGeometry, isMessage, labelCenter, roundedPathData, type Lookup } from './connectors'
 import type { Point, Rect } from './geometry'
 import { branchCurve, foldBadge, levelStyle, outerEdge, type MindmapLayout } from './mindmap'
-import { LIFELINE_WIDTH, Renderer, SHAPE_DASH, lifelineColor } from './renderer'
+import { LIFELINE_WIDTH, Renderer, SHAPE_DASH, lifelineColor, sectionsUnder } from './renderer'
 import { lifeline } from './sequence'
 import { tableParts } from './table'
 import { fontOf, imagePlaceholder, type Part } from './parts'
@@ -328,7 +328,9 @@ function svgDocument(scene: ExportScene, measureAt: MeasureAt, images: Map<strin
       const ring = paint('stroke', strokeColor(scene.mindmap.children.get(n.id)?.[0]?.color ?? n.color))
       const count = box.hidden > 99 ? '99+' : String(box.hidden)
       body.push(`<path d="M${num(outerEdge(box))} ${num(b.cy)}H${num(box.left ? b.cx + b.r : b.cx - b.r)}" ${ring} stroke-width="2"/>`)
-      body.push(`<circle cx="${num(b.cx)}" cy="${num(b.cy)}" r="${b.r}" ${paint('fill', theme.canvasBg)} ${ring} stroke-width="2"/>`)
+      const disc = (color: string) => `<circle cx="${num(b.cx)}" cy="${num(b.cy)}" r="${b.r}" ${paint('fill', color)}/>`
+      body.push(disc(theme.canvasBg), ...sectionsUnder(scene.objects, { x: b.cx, y: b.cy }, n.z).map(() => disc(theme.sectionFill)))
+      body.push(`<circle cx="${num(b.cx)}" cy="${num(b.cy)}" r="${b.r}" fill="none" ${ring} stroke-width="2"/>`)
       body.push(textLines([count], b.cx, b.cy, 0, `600 ${box.hidden > 99 ? 9 : 11}px ${FONT_FAMILY}`, theme.text, 'middle'))
     }
     const style = levelStyle(box.level)
@@ -359,7 +361,8 @@ function svgDocument(scene: ExportScene, measureAt: MeasureAt, images: Map<strin
     if (c.label.length === 0) return
     const { rich, w, h } = labelLayout(c.label, measureAt)
     const at = labelCenter(g, w)
-    body.push(`<rect x="${num(at.x - w / 2)}" y="${num(at.y - h / 2)}" width="${num(w)}" height="${num(h)}" ${paint('fill', theme.canvasBg)}/>`)
+    const backing = (color: string) => `<rect x="${num(at.x - w / 2)}" y="${num(at.y - h / 2)}" width="${num(w)}" height="${num(h)}" ${paint('fill', color)}/>`
+    body.push(backing(theme.canvasBg), ...sectionsUnder(scene.objects, at, c.z).map(() => backing(theme.sectionFill)))
     body.push(richSvg(rich, at.x - w / 2 + LABEL_PADDING, at.y - h / 2 + LABEL_PADDING / 2, theme.text, paint))
   }
 

@@ -24,7 +24,7 @@ import {
   type ConnectorHandles,
   type Lookup,
 } from './connectors'
-import { GRID, expandRect, rectsIntersect, type Point, type Rect } from './geometry'
+import { GRID, expandRect, rectContains, rectsIntersect, type Point, type Rect } from './geometry'
 import { borderPoint } from './outline'
 import { branchCurve, foldBadge, levelStyle, outerEdge, type MindmapLayout, type NodeBox } from './mindmap'
 import { actorBounds, lifeline } from './sequence'
@@ -121,6 +121,14 @@ export interface RenderState {
   tableMove?: { id: string; what: 'row' | 'col'; from: number; slot: number } | null
 }
 
+/**
+ * Sections drawn under `p` before an object at `z` (bottom first): a line's label backing is
+ * filled like the board and then like each of them, so it matches what is around it.
+ */
+export function sectionsUnder(objects: BoardObject[], p: Point, z: number): ShapeObject[] {
+  return objects.filter((o): o is ShapeObject => o.type === 'shape' && o.shape === 'section' && o.z < z && rectContains(o, p))
+}
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D
   private dpr = 1
@@ -131,6 +139,8 @@ export class Renderer {
   private cropView: RenderState['crop'] = null
   /** The zoom being drawn at (text too small to read is left out). */
   private zoom = 1
+  /** What is being drawn (for label backings over sections). */
+  private objects: BoardObject[] = []
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -163,6 +173,7 @@ export class Renderer {
     this.noteScroll = s.noteScroll ?? (() => 0)
     this.tableCell = s.tableCell ?? null
     this.cropView = s.crop ?? null
+    this.objects = s.objects
 
     // Board space: 1 unit = 1 board px.
     ctx.setTransform(dpr * vp.zoom, 0, 0, dpr * vp.zoom, -vp.offsetX * vp.zoom * dpr, -vp.offsetY * vp.zoom * dpr)
@@ -888,14 +899,14 @@ export class Renderer {
       ctx.roundRect(box.x, box.y, box.w, box.h, 6)
       ctx.fill()
     }
-    if (box.hidden) this.drawFoldBadge(box, layout.children.get(n.id)?.[0]?.color ?? n.color)
+    if (box.hidden) this.drawFoldBadge(box, layout.children.get(n.id)?.[0]?.color ?? n.color, n.z)
     if (!withText) return
     const style = levelStyle(box.level)
     if (!this.unreadable(style.fontSize)) drawRich(ctx, box.text, box.x + style.padX, box.y + style.padY, theme.text)
   }
 
   /** A folded node's count: a short branch out to a ringed number. */
-  private drawFoldBadge(box: NodeBox, color: ColorKey): void {
+  private drawFoldBadge(box: NodeBox, color: ColorKey, z: number): void {
     const { ctx } = this
     const b = foldBadge(box)
     ctx.save()
@@ -909,6 +920,8 @@ export class Renderer {
     ctx.arc(b.cx, b.cy, b.r, 0, Math.PI * 2)
     ctx.fillStyle = theme.canvasBg
     ctx.fill()
+    ctx.fillStyle = theme.sectionFill
+    sectionsUnder(this.objects, { x: b.cx, y: b.cy }, z).forEach(() => ctx.fill())
     ctx.stroke()
     ctx.fillStyle = theme.text
     ctx.font = fontOf(box.hidden! > 99 ? 9 : 11, true)
@@ -952,7 +965,7 @@ export class Renderer {
     ctx.setLineDash([])
     this.drawCap(pts, c.endCap, false)
     this.drawCap(pts, c.startCap, true)
-    if (withLabel && c.label.length > 0) this.drawLabel(c.label, g)
+    if (withLabel && c.label.length > 0) this.drawLabel(c.label, g, c.z)
     ctx.restore()
   }
 
@@ -985,13 +998,15 @@ export class Renderer {
     }
   }
 
-  private drawLabel(label: string, g: ConnectorGeometry): void {
+  private drawLabel(label: string, g: ConnectorGeometry, z: number): void {
     const { ctx } = this
     if (this.unreadable(LABEL_FONT_SIZE)) return
     const { rich, w, h } = labelLayout(label, this.measureAt)
     const at = labelCenter(g, w)
     ctx.fillStyle = theme.canvasBg
     ctx.fillRect(at.x - w / 2, at.y - h / 2, w, h)
+    ctx.fillStyle = theme.sectionFill
+    sectionsUnder(this.objects, at, z).forEach(() => ctx.fillRect(at.x - w / 2, at.y - h / 2, w, h))
     drawRich(ctx, rich, at.x - w / 2 + LABEL_PADDING, at.y - h / 2 + LABEL_PADDING / 2, theme.text)
   }
 
