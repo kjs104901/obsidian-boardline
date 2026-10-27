@@ -392,7 +392,7 @@ async function buildFlowchart(d: Flowchart, ctx: BuildContext): Promise<BoardObj
   // Subgraphs become sections around their nodes.
   const byId = new Map(shapes.map((s) => [s.id, s]))
   const sections: ShapeObject[] = []
-  d.subgraphs.forEach((g, i) => {
+  d.subgraphs.forEach((g) => {
     const members = g.nodes.map((n) => byId.get(ids.get(n)?.id ?? '')).filter((s): s is ShapeObject => !!s)
     if (members.length === 0) return
     const pad = 36
@@ -400,8 +400,10 @@ async function buildFlowchart(d: Flowchart, ctx: BuildContext): Promise<BoardObj
     const y = Math.min(...members.map((s) => s.y)) - pad
     const w = Math.max(...members.map((s) => s.x + s.w)) + pad - x
     const h = Math.max(...members.map((s) => s.y + s.h)) + pad - y
-    sections.push({ ...createShape('section', x, y, -d.subgraphs.length + i, { w, h }), text: g.title })
+    sections.push({ ...createShape('section', x, y, 0, { w, h }), text: g.title })
   })
+  // Behind the nodes, a subgraph's section over the one of the subgraph around it.
+  sections.sort((a, b) => b.w * b.h - a.w * a.h).forEach((s, i) => (s.z = i - sections.length))
   return [...sections, ...shapes, ...connectors]
 }
 

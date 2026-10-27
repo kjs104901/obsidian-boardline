@@ -55,8 +55,9 @@ export function canvasToObjects(json: string): BoardObject[] {
     return []
   }
   const nodes = (data.nodes ?? []).filter((n) => n && typeof n.id === 'string' && [n.x, n.y, n.width, n.height].every(Number.isFinite))
-  // Groups behind everything, then cards in file order, then edges on top.
-  const ordered = [...nodes.filter((n) => n.type === 'group'), ...nodes.filter((n) => n.type !== 'group')]
+  // Groups behind everything (bigger ones under the groups in them), then cards in file order, then edges on top.
+  const groups = nodes.filter((n) => n.type === 'group').sort((a, b) => b.width * b.height - a.width * a.height)
+  const ordered = [...groups, ...nodes.filter((n) => n.type !== 'group')]
   const objects: BoardObject[] = []
   let z = 0
   for (const n of ordered) {

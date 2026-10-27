@@ -113,6 +113,7 @@ import { buildDiagram, mermaidKind, parseMermaid } from '../board/mermaidImport'
 import { toMermaid } from './mermaid'
 import { applyStyle, saveDefaultStyle, styleOf, withDefaultStyle, type Style } from '../board/styles'
 import { growSections, planQuickAdd, type QuickAddPlan } from './quickAdd'
+import { newSectionZ, ownerOf } from './sections'
 import {
   CONNECTOR_END_RADIUS,
   DOT_HOVER_RADIUS,
@@ -984,7 +985,7 @@ export class BoardEditor {
     this.commitEditing()
     const spec = SHAPE_SPECS[kind]
     let shape = withDefaultStyle(createShape(kind, snap(at.x - spec.w / 2), snap(at.y - spec.h / 2), this.doc.maxZ() + 1))
-    if (isContainer(shape)) shape = { ...shape, z: Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1 }
+    if (isContainer(shape)) shape = { ...shape, z: newSectionZ(shape, [...this.doc.objects.values()]) }
     this.commit(t('undo.addShape'), [createOp(shape)])
     this.selection = new Set([shape.id])
     if (shape.shape === 'table') {
@@ -2503,16 +2504,8 @@ export class BoardEditor {
       } else if (isShape(o) || (isConnector(o) && ('point' in o.from || 'point' in o.to))) originals.set(id, o)
     }
     for (const [id, o] of originals) if (o.locked) originals.delete(id)
-    // A section carries everything that lies inside it.
-    for (const o of carry ? [...originals.values()] : []) {
-      if (!isShape(o) || !isContainer(o)) continue
-      for (const inner of this.doc.ordered()) {
-        if (originals.has(inner.id) || inner.id === o.id || isConnector(inner) || inner.locked) continue
-        if (isMindmap(inner) && inner.parentId) continue
-        const r = this.rectOf(inner, layout)
-        if (r && containsRect(o, r)) originals.set(inner.id, inner)
-      }
-    }
+    // A section carries what it holds.
+    if (carry) for (const inner of this.heldBy([...originals.keys()])) if (!originals.has(inner.id) && !inner.locked) originals.set(inner.id, inner)
     // Pinned segments travel with a connector whose attached ends all move.
     const rigid = new Set<string>()
     for (const o of this.doc.objects.values()) {
@@ -2831,20 +2824,34 @@ export class BoardEditor {
     this.commit(label, ops, mergeWithLast)
   }
 
-  /** The selection and what lies inside selected sections: what copying it copies. */
+  /** The selection and what selected sections hold: what copying it copies. */
   private selectionWithHeld(): Set<string> {
+    return new Set([...this.selection, ...this.heldBy(this.selection).map((o) => o.id)])
+  }
+
+  /** What the sections among `ids` hold, sections in them and what those hold included (see ownerOf). */
+  private heldBy(ids: Iterable<string>): BoardObject[] {
+    const all = this.doc.ordered()
+    const sections = all.filter((o): o is ShapeObject => isShape(o) && isContainer(o))
+    if (sections.length === 0) return []
     const layout = this.layout()
-    const ids = new Set(this.selection)
-    for (const id of this.selection) {
-      const o = this.doc.get(id)
-      if (!isShape(o) || !isContainer(o)) continue
-      for (const inner of this.doc.ordered()) {
-        if (inner.id === o.id || isConnector(inner) || (isMindmap(inner) && inner.parentId)) continue
-        const r = this.rectOf(inner, layout)
-        if (r && containsRect(o, r)) ids.add(inner.id)
+    const held = new Map<string, BoardObject[]>()
+    for (const o of all) {
+      if (isConnector(o) || (isMindmap(o) && o.parentId)) continue
+      const r = this.rectOf(o, layout)
+      if (!r) continue
+      const owner = ownerOf(o, r, sections)
+      if (owner) held.set(owner.id, [...(held.get(owner.id) ?? []), o])
+    }
+    const out: BoardObject[] = []
+    const stack = [...ids]
+    while (stack.length) {
+      for (const o of held.get(stack.pop()!) ?? []) {
+        out.push(o)
+        stack.push(o.id)
       }
     }
-    return ids
+    return out
   }
 
   /**
@@ -2917,8 +2924,8 @@ export class BoardEditor {
 
   private finishCreate(it: Extract<Interaction, { kind: 'create' }>): void {
     let shape: ShapeObject = { ...this.createdShape(it), z: this.doc.maxZ() + 1 }
-    // Sections sit behind everything.
-    if (isContainer(shape)) shape = { ...shape, z: Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1 }
+    // Sections sit behind everything but the sections they lie in.
+    if (isContainer(shape)) shape = { ...shape, z: newSectionZ(shape, [...this.doc.objects.values()]) }
     this.commit(t('undo.addShape'), [createOp(shape)])
     this.selection = new Set([shape.id])
     this.setTool({ kind: 'select' })
@@ -3846,8 +3853,7 @@ export class BoardEditor {
     const y = snap(b.y - WRAP_PADDING)
     const w = snap(b.x + b.w + WRAP_PADDING) - x
     const h = snap(b.y + b.h + WRAP_PADDING) - y
-    const z = Math.min(0, ...[...this.doc.objects.values()].map((o) => o.z)) - 1
-    const section = withDefaultStyle(createShape('section', x, y, z, { w, h }))
+    const section = withDefaultStyle(createShape('section', x, y, newSectionZ({ x, y, w, h }, [...this.doc.objects.values()]), { w, h }))
     this.commit(t('section.wrap'), [createOp(section)])
     this.selection = new Set([section.id])
     this.afterSelectionChange()

@@ -4,6 +4,7 @@
 
 import type { ShapeObject, Side } from '../board/model'
 import { GRID, containsRect, unionRects, type Rect } from './geometry'
+import { canHold } from './sections'
 
 export const QUICK_ADD_GAP = 80
 export const QUICK_ADD_SIBLING_GAP = 40
@@ -70,13 +71,13 @@ export function planQuickAdd(
 }
 
 /**
- * The sections around `source` grown where the new shape at `rect` would stick out of them
+ * The sections under `source` grown where the new shape at `rect` would stick out of them
  * (so they still carry it), innermost first. Each grows past it by the room it leaves around
  * what it holds on that side, at least a grid step and at most `most`. Locked ones stay.
  */
 export function growSections(source: ShapeObject, rect: Rect, shapes: ShapeObject[], most: number): ShapeObject[] {
   const holding = shapes
-    .filter((o) => o.shape === 'section' && o.id !== source.id && !o.locked && containsRect(o, source))
+    .filter((o) => o.shape === 'section' && !o.locked && canHold(o, source, source))
     .sort((a, b) => a.w * a.h - b.w * b.h)
   const done: { before: ShapeObject; after: ShapeObject }[] = []
   for (const s of holding) {

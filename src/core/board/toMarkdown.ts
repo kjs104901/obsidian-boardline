@@ -102,22 +102,23 @@ export function boardToMarkdown(objects: BoardObject[]): string {
   const sections = shapes.filter((s) => s.shape === 'section')
   const nodes = objects.filter(isMindmap)
   const roots = nodes.filter((n) => !n.parentId)
-  // Each thing belongs to the smallest section around its middle (a section to the smallest around it).
-  const homeOf = (x: number, y: number, self?: ShapeObject): string | null => {
-    const around = sections.filter((s) => s !== self && containsPoint(s, x, y) && (!self || s.w * s.h > self.w * self.h))
-    around.sort((a, b) => a.w * a.h - b.w * b.h)
+  // Each thing belongs to the smallest section beneath it around its middle (a section to the
+  // smallest around it); of two alike (one pasted over another), the one on top.
+  const homeOf = (x: number, y: number, self: ShapeObject | null, z: number): string | null => {
+    const around = sections.filter((s) => s !== self && containsPoint(s, x, y) && (self ? s.w * s.h > self.w * self.h : s.z < z))
+    around.sort((a, b) => a.w * a.h - b.w * b.h || b.z - a.z)
     return around[0]?.id ?? null
   }
   type Entry = { x: number; y: number; home: string | null; section?: ShapeObject; block?: Block }
   const entries: Entry[] = []
   for (const s of shapes) {
-    if (s.shape === 'section') entries.push({ x: s.x, y: s.y, home: homeOf(s.x + s.w / 2, s.y + s.h / 2, s), section: s })
+    if (s.shape === 'section') entries.push({ x: s.x, y: s.y, home: homeOf(s.x + s.w / 2, s.y + s.h / 2, s, s.z), section: s })
     else {
       const block = shapeBlock(s)
-      if (block) entries.push({ x: s.x, y: s.y, home: homeOf(s.x + s.w / 2, s.y + s.h / 2), block })
+      if (block) entries.push({ x: s.x, y: s.y, home: homeOf(s.x + s.w / 2, s.y + s.h / 2, null, s.z), block })
     }
   }
-  for (const r of roots) entries.push({ x: r.x, y: r.y, home: homeOf(r.x, r.y), block: mindmapBlock(r, nodes) })
+  for (const r of roots) entries.push({ x: r.x, y: r.y, home: homeOf(r.x, r.y, null, r.z), block: mindmapBlock(r, nodes) })
 
   const render = (home: string | null, level: number): Block[] =>
     readingOrder(entries.filter((e) => e.home === home)).flatMap((e) => {
